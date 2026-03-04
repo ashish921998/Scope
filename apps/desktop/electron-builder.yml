@@ -1,0 +1,11 @@
+appId: com.scope.desktop
+productName: Scope
+files:
+  - dist/**
+  - package.json
+mac:
+  target:
+    - dmg
+  artifactName: "Scope-${version}.${ext}"
+dmg:
+  sign: false

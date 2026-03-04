@@ -1,0 +1,26 @@
+{
+  "name": "@scope/desktop",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "dist/main.js",
+  "scripts": {
+    "dev": "npm run build && npm run start",
+    "build": "tsc -p tsconfig.json",
+    "start": "electron dist/main.js",
+    "lint": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@scope/core": "0.1.0",
+    "@scope/types": "0.1.0",
+    "cors": "^2.8.5",
+    "electron": "^35.0.0",
+    "express": "^4.21.2",
+    "keytar": "^7.9.0"
+  },
+  "devDependencies": {
+    "@types/cors": "^2.8.18",
+    "@types/express": "^5.0.0",
+    "electron-builder": "^25.1.8"
+  }
+}

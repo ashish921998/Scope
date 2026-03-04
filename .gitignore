@@ -1,0 +1,12 @@
+node_modules
+.next
+dist
+out
+coverage
+*.log
+.DS_Store
+apps/desktop/.vite
+apps/desktop/.electron
+*.db
+*.db-wal
+*.db-shm
