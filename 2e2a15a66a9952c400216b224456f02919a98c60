@@ -1,0 +1,251 @@
+packages/core/src/security/egress.ts
+  cdfa8457f41a3b94 5,10-11
+  0230c75ee462cf0e 16-21
+apps/desktop/electron-builder.yml
+  cdfa8457f41a3b94 3-4,8,10-14,16,20
+packages/core/src/signals/classifier.ts
+  4211dfab39e97f1b 40
+apps/desktop/src/service/server.ts
+  181cd44908f04bf8 1,18,84-90,92,94-96,98-100,102,142
+  cdfa8457f41a3b94 6-8,25-29,33,35-37,41-44,46-51,53-54,58-72,75-81,104-113,115-116,120,143-149,152,158-159
+  4211dfab39e97f1b 34,38-39
+apps/renderer/lib/audio.ts
+  a5702d32d2d50aeb 16-28,32-40,42,45-46,49-50,53
+README.md
+  cdfa8457f41a3b94 8,15,32,41-43,47,55-57,74,84-115,119-141
+packages/core/src/db/dossierRepo.ts
+  47b32e6ff82b2dbf 3,47-49
+apps/desktop/src/transcription/openaiRealtimeTranscription.ts
+  5c90c3358b205415 45,52-55,134-135,170-178,229-230,240-241,347,375-384,386-387,450-453
+packages/core/src/db/featureRepo.ts
+  47b32e6ff82b2dbf 3,45,70
+docs/architecture.md
+  cdfa8457f41a3b94 8,13-18,20-24,29,32,34-43
+apps/renderer/next.config.ts
+  cdfa8457f41a3b94 4-9
+apps/renderer/types/scope.d.ts
+  a5702d32d2d50aeb 1-17
+apps/desktop/package.json
+  cdfa8457f41a3b94 10,12-14,19,23-24,27,30
+packages/core/src/integrations/jiraAdapter.ts
+  0230c75ee462cf0e 9
+apps/desktop/src/main.ts
+  181cd44908f04bf8 95,102
+  cdfa8457f41a3b94 8,11,16-21,24,27-40,45,47,56-59,63-67,76-94,96,112-129
+  03df54d1b4ca3270 7,13,46
+apps/renderer/package.json
+  cdfa8457f41a3b94 7-8
+apps/renderer/app/globals.css
+  cdfa8457f41a3b94 2-16,25,28-30,33-42,48,55-59,61-93,106-109,125,127-129,138-141,144-146,150-163,167-179,183-185,194-345
+apps/renderer/tsconfig.tsbuildinfo
+  cdfa8457f41a3b94 1
+packages/core/package.json
+  cdfa8457f41a3b94 18
+packages/core/src/db/client.ts
+  9857bf8111cf3ed8 88-91
+  cdfa8457f41a3b94 1-2,9-15,22,26,31-56,59-61,80,82-83,86,94-104,106-112
+packages/core/src/dossier/pipeline.ts
+  03df54d1b4ca3270 2,7-40,61,72,77-99,102,107,113,119,122-123,125-157,160-161,201,207-209,211-268,271,277-303,309,311-313,318-321
+package.json
+  cdfa8457f41a3b94 12,16-19
+packages/core/src/features/ghostFeatures.ts
+  4211dfab39e97f1b 4,7,86
+apps/desktop/src/security/keychain.ts
+  cdfa8457f41a3b94 2,6,14,40-58
+  149c052eae41363e 5,35,37-39,60-66
+docs/support-webhook-verification.md
+  cdfa8457f41a3b94 1-72
+packages/core/src/db/signalRepo.ts
+  47b32e6ff82b2dbf 5-14,16-22,84,96,98-101,112,114-117,120-132,135,137-138,140
+apps/renderer/lib/api.ts
+  181cd44908f04bf8 3-12,14,19
+packages/core/src/dossier/service.ts
+  03df54d1b4ca3270 11-12,15,20-21
+tests/unit/webhook-signing.test.ts
+  cdfa8457f41a3b94 1-87
+packages/core/src/signals/dedupe.ts
+  4211dfab39e97f1b 7
+apps/desktop/src/auth/oauth.ts
+  149c052eae41363e 2,29,35-37,48-50,71-73,86-88,97-102,175,178,184,351-355,365-366,373-374,405-406,471-472,499-500
+  cdfa8457f41a3b94 3,7-8,10-27,103-142,144-160,164-165,176,180,183,185,189-309,314,318-324,358,361-364,367-372,375-404,407-470,473-498,501,503-516
+apps/desktop/src/service/routes/dossiers.ts
+  03df54d1b4ca3270 14,16
+apps/renderer/types/global.d.ts
+  a5702d32d2d50aeb 1
+apps/desktop/src/ipc/registerIpc.ts
+  181cd44908f04bf8 56,61-65
+  cdfa8457f41a3b94 1,7-51,57,66-83,89-94,97-101,105-113,118-121,125,135-141,146,159,161
+apps/desktop/src/audio/captureService.ts
+  bd8b07b2ba2ae4b6 25-27,53-56
+  cdfa8457f41a3b94 10,12-24,40-41,45,48-52,57,63-64
+tests/unit/tour-layout.test.ts
+  cdfa8457f41a3b94 1-48
+tests/e2e/full-loop.test.ts
+  9857bf8111cf3ed8 7,12,27,40,49,54,68,80,90,97,102
+packages/core/src/app.ts
+  03df54d1b4ca3270 16,46
+  cdfa8457f41a3b94 12-15,17,31-32,34-36
+apps/desktop/src/preload.ts
+  181cd44908f04bf8 13-14
+apps/renderer/app/tourLayout.ts
+  cdfa8457f41a3b94 1-82
+tests/integration/local-service.test.ts
+  cdfa8457f41a3b94 1,4,47-51,91-92,94-102,104-114,116-121,123-136,138-160,162-201,203-226,228-232,235-238,240-265,267-385,388,390-400,402-410
+  9857bf8111cf3ed8 7,12,24,37,46,52,80,87,93,103,115,122,137,161,202,227,233-234,239,266,386-387,389,401
+apps/desktop/src/service/routes/signals.ts
+  181cd44908f04bf8 21-22
+apps/renderer/components/InterviewCard.tsx
+  a5702d32d2d50aeb 7-19,62,64-70,87,93-96,112,114-116,124-125,160,165-167,175,177-178,181-182,199-204,207-224,226,228,230-239,250-252,260,262-264,268-269,285,287-289,298-299,308,310-312,318-319,328-337,346,348-350,356-357
+apps/renderer/app/page.tsx
+  cdfa8457f41a3b94 4,13-21,23-47,51-53,56-75,77-84,86-107,109-149,153-165,179
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.15",
+  "base_commit_sha": "2e2a15a66a9952c400216b224456f02919a98c60",
+  "prompts": {
+    "0230c75ee462cf0e": {
+      "agent_id": {
+        "tool": "droid",
+        "id": "b7fafe41-fe03-4ba3-9905-cf6e621d3e5a",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "Ashish Huddar <ashish.hudar@gmail.com>",
+      "messages": [],
+      "total_additions": 7,
+      "total_deletions": 3,
+      "accepted_lines": 7,
+      "overriden_lines": 0
+    },
+    "03df54d1b4ca3270": {
+      "agent_id": {
+        "tool": "droid",
+        "id": "7ce1f792-5840-4887-a1c3-b70f6eb906c4",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "Ashish Huddar <ashish.hudar@gmail.com>",
+      "messages": [],
+      "total_additions": 214,
+      "total_deletions": 29,
+      "accepted_lines": 213,
+      "overriden_lines": 0
+    },
+    "149c052eae41363e": {
+      "agent_id": {
+        "tool": "droid",
+        "id": "834c1a45-77a9-4835-8371-4e6053756344",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "Ashish Huddar <ashish.hudar@gmail.com>",
+      "messages": [],
+      "total_additions": 52,
+      "total_deletions": 16,
+      "accepted_lines": 51,
+      "overriden_lines": 0
+    },
+    "181cd44908f04bf8": {
+      "agent_id": {
+        "tool": "droid",
+        "id": "1073838d-db92-4e2c-b0be-e1ac8f32ede3",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "Ashish Huddar <ashish.hudar@gmail.com>",
+      "messages": [],
+      "total_additions": 49,
+      "total_deletions": 6,
+      "accepted_lines": 46,
+      "overriden_lines": 0
+    },
+    "4211dfab39e97f1b": {
+      "agent_id": {
+        "tool": "droid",
+        "id": "efdf68f4-2077-469f-a5cf-bab76fb562ee",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "Ashish Huddar <ashish.hudar@gmail.com>",
+      "messages": [],
+      "total_additions": 8,
+      "total_deletions": 6,
+      "accepted_lines": 8,
+      "overriden_lines": 0
+    },
+    "47b32e6ff82b2dbf": {
+      "agent_id": {
+        "tool": "droid",
+        "id": "8f921aa1-0496-4c75-9683-1680ceb3c412",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "Ashish Huddar <ashish.hudar@gmail.com>",
+      "messages": [],
+      "total_additions": 61,
+      "total_deletions": 59,
+      "accepted_lines": 56,
+      "overriden_lines": 0
+    },
+    "5c90c3358b205415": {
+      "agent_id": {
+        "tool": "droid",
+        "id": "9d33da7a-1420-42d4-b8fc-51c44b08f028",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "Ashish Huddar <ashish.hudar@gmail.com>",
+      "messages": [],
+      "total_additions": 38,
+      "total_deletions": 5,
+      "accepted_lines": 37,
+      "overriden_lines": 0
+    },
+    "9857bf8111cf3ed8": {
+      "agent_id": {
+        "tool": "droid",
+        "id": "9230d6f4-6702-4ff1-916c-e1b0c012c3bc",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "Ashish Huddar <ashish.hudar@gmail.com>",
+      "messages": [],
+      "total_additions": 39,
+      "total_deletions": 26,
+      "accepted_lines": 39,
+      "overriden_lines": 0
+    },
+    "a5702d32d2d50aeb": {
+      "agent_id": {
+        "tool": "droid",
+        "id": "98b3f4c1-04e2-4b0f-9552-9dda6af918eb",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "Ashish Huddar <ashish.hudar@gmail.com>",
+      "messages": [],
+      "total_additions": 231,
+      "total_deletions": 156,
+      "accepted_lines": 160,
+      "overriden_lines": 0
+    },
+    "bd8b07b2ba2ae4b6": {
+      "agent_id": {
+        "tool": "droid",
+        "id": "9df29be9-bc52-4c9e-9d38-b96dff77546a",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "Ashish Huddar <ashish.hudar@gmail.com>",
+      "messages": [],
+      "total_additions": 7,
+      "total_deletions": 0,
+      "accepted_lines": 7,
+      "overriden_lines": 0
+    },
+    "cdfa8457f41a3b94": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019cbcc7-28bb-7590-956d-e60a673dc757",
+        "model": "gpt-5.4"
+      },
+      "human_author": "Ashish Huddar <ashish.hudar@gmail.com>",
+      "messages": [],
+      "total_additions": 2825,
+      "total_deletions": 168,
+      "accepted_lines": 1890,
+      "overriden_lines": 22
+    }
+  }
+}
