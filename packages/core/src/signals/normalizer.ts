@@ -7,7 +7,9 @@ const sourceAliases: Record<string, SignalSource> = {
   posthog: "posthog",
   notion: "notion",
   jira: "jira",
+  google: "google",
   interview: "interview",
+  meeting: "meeting",
   research: "research_upload",
   upload: "research_upload"
 };

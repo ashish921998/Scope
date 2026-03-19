@@ -46,7 +46,11 @@ export class MeetingService {
       throw new Error("Meeting session not found.");
     }
 
-    const merged = [...session.transcriptSegments, ...segments].sort((a, b) => a.timestampMs - b.timestampMs);
+    const mergedById = new Map(session.transcriptSegments.map((segment) => [segment.id, segment]));
+    for (const segment of segments) {
+      mergedById.set(segment.id, segment);
+    }
+    const merged = [...mergedById.values()].sort((a, b) => a.timestampMs - b.timestampMs);
     this.meetingRepo.updateTranscript(sessionId, merged);
 
     return {

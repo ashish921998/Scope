@@ -1,3 +1,4 @@
+import { describe, expect, it } from "vitest";
 import { DeepgramStreamingTranscription } from "../../apps/desktop/src/transcription/deepgramTranscription";
 import { OpenAIRealtimeTranscription } from "../../apps/desktop/src/transcription/openaiRealtimeTranscription";
 import { TranscriptionRouter } from "../../apps/desktop/src/transcription/transcriptionRouter";
