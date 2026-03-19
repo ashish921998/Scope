@@ -1,5 +1,5 @@
 import { contextBridge, ipcRenderer } from "electron";
-import type { IntegrationProvider } from "@scope/types";
+import type { IntegrationProvider, MediaPermissionStatus } from "@scope/types";
 
 contextBridge.exposeInMainWorld("scope", {
   connectIntegration: (provider: IntegrationProvider) => ipcRenderer.invoke("auth/connectIntegration", provider),
@@ -11,5 +11,6 @@ contextBridge.exposeInMainWorld("scope", {
   generateDossier: (featureId: string) => ipcRenderer.invoke("dossier/generate", featureId),
   exportDossier: (featureId: string, format: "markdown" | "json") =>
     ipcRenderer.invoke("export/dossier", featureId, format),
-  getServiceToken: () => ipcRenderer.invoke("service/getToken")
+  getServiceToken: () => ipcRenderer.invoke("service/getToken"),
+  getMediaPermissions: () => ipcRenderer.invoke("media/getPermissions") as Promise<MediaPermissionStatus>
 });

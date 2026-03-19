@@ -1,4 +1,4 @@
-import type { IntegrationProvider } from "@scope/types";
+import type { IntegrationProvider, MediaPermissionStatus } from "@scope/types";
 
 declare global {
   interface Window {
@@ -10,6 +10,7 @@ declare global {
       generateDossier: (featureId: string) => Promise<unknown>;
       exportDossier: (featureId: string, format: "markdown" | "json") => Promise<unknown>;
       getServiceToken: () => Promise<string>;
+      getMediaPermissions: () => Promise<MediaPermissionStatus>;
     };
   }
 }
