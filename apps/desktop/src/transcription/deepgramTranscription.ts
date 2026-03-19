@@ -130,7 +130,11 @@ export class DeepgramStreamingTranscription implements TranscriptionProvider {
       throw new Error("Deepgram realtime websocket is not connected.");
     }
 
-    state.sampleRateHz = input.sampleRateHz ?? state.sampleRateHz;
+    if (input.sampleRateHz && input.sampleRateHz !== state.sampleRateHz) {
+      throw new Error(
+        `Audio chunk sample rate ${input.sampleRateHz} does not match active session sample rate ${state.sampleRateHz}.`
+      );
+    }
     state.ws.send(chunk);
 
     return {
@@ -227,6 +231,12 @@ export class DeepgramStreamingTranscription implements TranscriptionProvider {
     ws.on("error", (error: Error) => {
       this.deps.logger?.warn?.("Deepgram websocket error", error);
     });
+    ws.on("close", () => {
+      state.closed = true;
+      if (this.sessions.get(state.ref.id) === state) {
+        this.sessions.delete(state.ref.id);
+      }
+    });
   }
 
   private handleRealtimeEvent(state: DeepgramSessionState, event: Record<string, unknown>) {
@@ -259,8 +269,13 @@ export class DeepgramStreamingTranscription implements TranscriptionProvider {
       return;
     }
 
-    state.transcriptSegmentsProduced += segments.length;
-    this.deps.onTranscriptSegments(state.ref, segments);
+    try {
+      this.deps.onTranscriptSegments(state.ref, segments);
+      state.transcriptSegmentsProduced += segments.length;
+    } catch (error) {
+      this.deps.logger?.error?.("Failed to persist Deepgram transcript segments", error);
+      void this.closeSession(state);
+    }
   }
 
   private async closeSession(state: DeepgramSessionState) {
@@ -286,6 +301,7 @@ export class DeepgramStreamingTranscription implements TranscriptionProvider {
         }
         setTimeout(resolve, 700);
       });
+      await new Promise((resolve) => setTimeout(resolve, 100));
     }
 
     state.ws = null;

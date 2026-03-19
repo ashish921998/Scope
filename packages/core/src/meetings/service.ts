@@ -45,6 +45,9 @@ export class MeetingService {
     if (!session) {
       throw new Error("Meeting session not found.");
     }
+    if (session.status === "completed") {
+      throw new Error("Meeting session already completed.");
+    }
 
     const mergedById = new Map(session.transcriptSegments.map((segment) => [segment.id, segment]));
     for (const segment of segments) {
@@ -69,21 +72,22 @@ export class MeetingService {
   }
 
   stop(sessionId: string) {
-    const session = this.meetingRepo.get(sessionId);
-    if (!session) {
+    const current = this.meetingRepo.get(sessionId);
+    if (!current) {
       throw new Error("Meeting session not found.");
     }
 
-    if (session.status === "completed") {
-      return session;
+    if (current.status === "completed") {
+      return current;
     }
 
     const endedAt = nowIso();
-    const durationMs = Math.max(0, Date.parse(endedAt) - Date.parse(session.startedAt));
+    const durationMs = Math.max(0, Date.parse(endedAt) - Date.parse(current.startedAt));
     this.meetingRepo.complete(sessionId, endedAt, durationMs);
 
-    if (!session.notes) {
-      this.meetingRepo.updateNotes(sessionId, buildDefaultNotes(session.transcriptSegments));
+    const completed = this.meetingRepo.get(sessionId);
+    if (completed && !completed.notes) {
+      this.meetingRepo.updateNotes(sessionId, buildDefaultNotes(completed.transcriptSegments));
     }
 
     return this.meetingRepo.get(sessionId);
