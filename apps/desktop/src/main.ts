@@ -1,5 +1,6 @@
 import { app, BrowserWindow, dialog } from "electron";
 import { join } from "node:path";
+import { pathToFileURL } from "node:url";
 import { CaptureService } from "./audio/captureService";
 import { GoogleCalendarSync, findMeetingCandidate, type CalendarEvent, type MeetingCandidate } from "./meetings/calendarSync";
 import { MeetingCoordinator } from "./meetings/coordinator";
@@ -178,7 +179,7 @@ const createMainWindow = async (logger: AppLogger) => {
     keychainStore,
     servicePort: localService.port,
     serviceToken: localService.serviceToken,
-    rendererUrl: rendererUrl ?? "file://",
+    rendererUrl: rendererUrl ?? pathToFileURL(resolveRendererLocation("/", null).value).toString(),
     getOverlayState: () => overlayController?.getState() ?? null,
     stopOverlaySession: () => stopOverlaySession(logger)
   });

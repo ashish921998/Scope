@@ -43,17 +43,17 @@ export class OverlayWindowController {
           }));
 
     this.window = win;
-    this.state = {
-      ...session,
-      visible: true
-    };
-
+    win.removeAllListeners("closed");
     win.on("closed", () => {
       this.window = null;
       this.state = null;
     });
 
     await this.deps.loadOverlay(win, session);
+    this.state = {
+      ...session,
+      visible: true
+    };
     win.showInactive();
   }
 

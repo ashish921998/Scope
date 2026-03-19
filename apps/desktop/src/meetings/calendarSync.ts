@@ -111,6 +111,14 @@ export const findMeetingCandidate = (
   now = new Date()
 ): MeetingCandidate | null => {
   const nowMs = now.getTime();
+  let bestCandidate: MeetingCandidate | null = null;
+
+  const confidenceRank: Record<MeetingConfidence, number> = {
+    low: 0,
+    medium: 1,
+    high: 2
+  };
+
   for (const process of processes) {
     const nearbyEvent =
       events.find((event) => {
@@ -119,26 +127,27 @@ export const findMeetingCandidate = (
         return Number.isFinite(start) && Number.isFinite(end) && start - 15 * 60_000 <= nowMs && end + 5 * 60_000 >= nowMs;
       }) ?? undefined;
 
-    if (!nearbyEvent) {
-      return {
-        key: `process:${process.provider}`,
-        confidence: "low",
-        process,
-        title: `${process.processName} meeting detected`
-      };
-    }
+    const candidate = !nearbyEvent
+      ? {
+          key: `process:${process.provider}`,
+          confidence: "low" as const,
+          process,
+          title: `${process.processName} meeting detected`
+        }
+      : {
+          key: `${process.provider}:${nearbyEvent.id}:${eventMatchesProcess(nearbyEvent, process.provider) ? "high" : "medium"}`,
+          confidence: (eventMatchesProcess(nearbyEvent, process.provider) ? "high" : "medium") as MeetingConfidence,
+          process,
+          event: nearbyEvent,
+          title: nearbyEvent.title
+        };
 
-    const confidence: MeetingConfidence = eventMatchesProcess(nearbyEvent, process.provider) ? "high" : "medium";
-    return {
-      key: `${process.provider}:${nearbyEvent.id}:${confidence}`,
-      confidence,
-      process,
-      event: nearbyEvent,
-      title: nearbyEvent.title
-    };
+    if (!bestCandidate || confidenceRank[candidate.confidence] > confidenceRank[bestCandidate.confidence]) {
+      bestCandidate = candidate;
+    }
   }
 
-  return null;
+  return bestCandidate;
 };
 
 export class GoogleCalendarSync {

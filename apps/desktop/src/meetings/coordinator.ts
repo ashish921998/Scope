@@ -10,6 +10,7 @@ export interface ActiveMeetingSession {
 export class MeetingCoordinator {
   private lastPromptKey: string | null = null;
   private activeSession: ActiveMeetingSession | null = null;
+  private prompting = false;
 
   constructor(
     private readonly deps: {
@@ -30,7 +31,7 @@ export class MeetingCoordinator {
   }
 
   async considerCandidate(candidate: MeetingCandidate | null) {
-    if (!candidate || candidate.confidence === "low" || this.activeSession) {
+    if (!candidate || candidate.confidence === "low" || this.activeSession || this.prompting) {
       if (!candidate) {
         this.lastPromptKey = null;
       }
@@ -42,13 +43,21 @@ export class MeetingCoordinator {
     }
 
     this.lastPromptKey = candidate.key;
-    const confirmed = await this.deps.promptUser(candidate);
-    if (!confirmed) {
-      return false;
-    }
+    this.prompting = true;
+    try {
+      const confirmed = await this.deps.promptUser(candidate);
+      if (!confirmed) {
+        return false;
+      }
 
-    this.activeSession = await this.deps.startSession(candidate);
-    this.deps.onSessionStarted?.(this.activeSession);
-    return true;
+      this.activeSession = await this.deps.startSession(candidate);
+      this.deps.onSessionStarted?.(this.activeSession);
+      return true;
+    } catch (error) {
+      this.lastPromptKey = null;
+      throw error;
+    } finally {
+      this.prompting = false;
+    }
   }
 }

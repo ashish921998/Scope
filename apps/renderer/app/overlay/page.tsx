@@ -84,6 +84,7 @@ export default function OverlayPage() {
         }
         if (!cancelled) {
           setTranscript(data.transcriptSegments ?? []);
+          setError("");
         }
       } catch (err) {
         if (!cancelled) {

@@ -58,6 +58,8 @@ export const listMeetingProcesses = async (): Promise<MeetingProcessPresence[]> 
 
 export class MeetingProcessWatcher {
   private timer: NodeJS.Timeout | null = null;
+  private running = false;
+  private stopped = true;
   private snapshot: MeetingProcessPresence[] = [];
 
   constructor(
@@ -73,23 +75,38 @@ export class MeetingProcessWatcher {
     if (this.timer) {
       return;
     }
+    this.stopped = false;
 
     const run = async () => {
+      if (this.stopped || this.running) {
+        return;
+      }
+      this.running = true;
       try {
-        this.snapshot = await (this.deps.listProcesses ?? listMeetingProcesses)();
-        this.deps.onUpdate?.(this.snapshot);
+        const snapshot = await (this.deps.listProcesses ?? listMeetingProcesses)();
+        if (!this.stopped) {
+          this.snapshot = snapshot;
+          this.deps.onUpdate?.(this.snapshot);
+        }
       } catch (error) {
-        this.deps.onError?.(error);
+        if (!this.stopped) {
+          this.deps.onError?.(error);
+        }
+      } finally {
+        this.running = false;
+        if (!this.stopped) {
+          this.timer = setTimeout(() => {
+            void run();
+          }, this.deps.pollMs ?? 10_000);
+        }
       }
     };
 
     void run();
-    this.timer = setInterval(() => {
-      void run();
-    }, this.deps.pollMs ?? 10_000);
   }
 
   stop() {
+    this.stopped = true;
     if (this.timer) {
       clearInterval(this.timer);
       this.timer = null;

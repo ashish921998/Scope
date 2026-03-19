@@ -72,7 +72,14 @@ describe("google calendar sync", () => {
 
     const realFetch = globalThis.fetch;
     globalThis.fetch = vi.fn(async (input: RequestInfo | URL) => {
-      const url = typeof input === "string" ? input : input.toString();
+      const url =
+        typeof input === "string"
+          ? input
+          : input instanceof URL
+            ? input.toString()
+            : input instanceof Request
+              ? input.url
+              : String(input);
       if (url === "https://oauth2.googleapis.com/token") {
         return new Response(
           JSON.stringify({
@@ -100,10 +107,12 @@ describe("google calendar sync", () => {
       );
     }) as typeof globalThis.fetch;
 
-    process.env.GOOGLE_CLIENT_ID = "google-client";
-    process.env.GOOGLE_CLIENT_SECRET = "google-secret";
+    const previousClientId = process.env.GOOGLE_CLIENT_ID;
+    const previousClientSecret = process.env.GOOGLE_CLIENT_SECRET;
 
     try {
+      process.env.GOOGLE_CLIENT_ID = "google-client";
+      process.env.GOOGLE_CLIENT_SECRET = "google-secret";
       const sync = new GoogleCalendarSync({
         keychainStore: keychainStore as never,
         now: () => now
@@ -119,6 +128,16 @@ describe("google calendar sync", () => {
       );
     } finally {
       globalThis.fetch = realFetch;
+      if (previousClientId === undefined) {
+        delete process.env.GOOGLE_CLIENT_ID;
+      } else {
+        process.env.GOOGLE_CLIENT_ID = previousClientId;
+      }
+      if (previousClientSecret === undefined) {
+        delete process.env.GOOGLE_CLIENT_SECRET;
+      } else {
+        process.env.GOOGLE_CLIENT_SECRET = previousClientSecret;
+      }
     }
   });
 });
