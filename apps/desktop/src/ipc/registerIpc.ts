@@ -1,5 +1,5 @@
 import { ipcMain, type IpcMainInvokeEvent } from "electron";
-import type { IntegrationProvider } from "@scope/types";
+import type { IntegrationProvider, ProviderKeyName } from "@scope/types";
 import { connectIntegrationOAuth } from "../auth/oauth";
 import type { CaptureService } from "../audio/captureService";
 import type { KeychainStore } from "../security/keychain";
@@ -13,8 +13,10 @@ const PROVIDERS: ReadonlySet<IntegrationProvider> = new Set([
   "jira"
 ]);
 
-const KEY_PROVIDERS = new Set(["openai", "anthropic"]);
+const KEY_PROVIDERS: ReadonlySet<ProviderKeyName> = new Set(["openai", "anthropic", "deepgram"]);
 const EXPORT_FORMATS = new Set(["markdown", "json"]);
+
+const isProviderKeyName = (value: string): value is ProviderKeyName => KEY_PROVIDERS.has(value as ProviderKeyName);
 
 const ensureString = (value: unknown, field: string) => {
   if (typeof value !== "string" || value.trim().length === 0) {
@@ -105,12 +107,12 @@ export const registerIpcHandlers = (params: {
     async (event, provider: unknown, keyRef: unknown) => {
       assertTrustedSender(event, params.rendererUrl);
       const keyProvider = ensureString(provider, "provider");
-      if (!KEY_PROVIDERS.has(keyProvider)) {
+      if (!isProviderKeyName(keyProvider)) {
         throw new Error(`Unsupported key provider: ${keyProvider}`);
       }
 
       const secret = ensureString(keyRef, "keyRef");
-      await params.keychainStore.saveProviderKey(keyProvider as "openai" | "anthropic", secret);
+      await params.keychainStore.saveProviderKey(keyProvider, secret);
       return { ok: true };
     }
   );

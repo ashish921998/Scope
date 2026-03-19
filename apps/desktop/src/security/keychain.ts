@@ -1,6 +1,6 @@
 import keytar from "keytar";
 import { randomBytes } from "node:crypto";
-import type { IntegrationProvider } from "@scope/types";
+import type { IntegrationProvider, ProviderKeyName } from "@scope/types";
 
 const SERVICE = "com.scope.desktop";
 const DB_KEY_ACCOUNT = "db:local-encryption-key";
@@ -15,11 +15,11 @@ export interface IntegrationTokenSecret {
 }
 
 export class KeychainStore {
-  async saveProviderKey(provider: "openai" | "anthropic", key: string) {
+  async saveProviderKey(provider: ProviderKeyName, key: string) {
     await keytar.setPassword(SERVICE, `provider:${provider}`, key);
   }
 
-  async getProviderKey(provider: "openai" | "anthropic") {
+  async getProviderKey(provider: ProviderKeyName) {
     return keytar.getPassword(SERVICE, `provider:${provider}`);
   }
 
@@ -58,7 +58,7 @@ export class KeychainStore {
     return generated;
   }
 
-  async deleteProviderKey(provider: "openai" | "anthropic") {
+  async deleteProviderKey(provider: ProviderKeyName) {
     await keytar.deletePassword(SERVICE, `provider:${provider}`);
   }
 
