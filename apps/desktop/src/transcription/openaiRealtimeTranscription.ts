@@ -1,10 +1,11 @@
 import { randomUUID } from "node:crypto";
 import { Buffer } from "node:buffer";
 import WebSocket, { type RawData } from "ws";
-import type { TranscriptSegment } from "@scope/types";
+import type { AudioChunkSource, TranscriptSegment, TranscriptSpeaker } from "@scope/types";
 import { assertAllowedEgress, safeFetch } from "@scope/core";
 
-type Speaker = TranscriptSegment["speaker"];
+type Source = AudioChunkSource;
+type Speaker = TranscriptSpeaker;
 
 interface StartTranscriptionOptions {
   realtimeModel?: string;
@@ -15,8 +16,9 @@ interface StartTranscriptionOptions {
 
 interface AudioChunkInput {
   audioBase64: string;
-  speaker?: Speaker;
+  source?: Source;
   sampleRateHz?: number;
+  timestampMs?: number;
 }
 
 interface StopTranscriptionResult {
@@ -29,9 +31,9 @@ interface StopTranscriptionResult {
 interface TranscriptionSessionState {
   interviewId: string;
   ws: WebSocket | null;
-  bufferedChunks: Buffer[];
-  speakerQueue: Speaker[];
-  itemSpeaker: Map<string, Speaker>;
+  bufferedChunksBySource: Record<Source, Buffer[]>;
+  sourceQueue: Source[];
+  itemSource: Map<string, Source>;
   partialByItem: Map<string, string>;
   sampleRateHz: number;
   realtimeModel: string;
@@ -42,7 +44,7 @@ interface TranscriptionSessionState {
   fallbackUsed: boolean;
   realtimeFailed: boolean;
   closed: boolean;
-  isBufferCapped: boolean;
+  isBufferCappedBySource: Record<Source, boolean>;
 }
 
 const DEFAULT_REALTIME_MODEL = "gpt-4o-mini-transcribe";
@@ -52,8 +54,11 @@ const DEFAULT_SAMPLE_RATE = 24000;
 // Cap the fallback audio buffer to the last 10 minutes to prevent unbounded memory growth.
 // At 24kHz PCM16 this is ~28.8 MB maximum.
 const MAX_FALLBACK_CHUNKS_BYTES = 24000 * 2 * 600; // 10 min at 24kHz PCM16
+const AUDIO_SOURCES: Source[] = ["mic", "system"];
 
 const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
+const speakerForSource = (source: Source): Speaker => (source === "mic" ? "me" : "speaker_remote");
 
 const safeJsonParse = (raw: string) => {
   try {
@@ -88,6 +93,11 @@ const buildWavFromPcm16 = (pcmChunks: Buffer[], sampleRateHz: number) => {
   return Buffer.concat([header, pcm]);
 };
 
+const buildSourceRecord = <T>(factory: () => T): Record<Source, T> => ({
+  mic: factory(),
+  system: factory()
+});
+
 export class OpenAIRealtimeTranscription {
   private readonly sessions = new Map<string, TranscriptionSessionState>();
 
@@ -119,9 +129,9 @@ export class OpenAIRealtimeTranscription {
     const state: TranscriptionSessionState = {
       interviewId,
       ws: null,
-      bufferedChunks: [],
-      speakerQueue: [],
-      itemSpeaker: new Map(),
+      bufferedChunksBySource: buildSourceRecord(() => []),
+      sourceQueue: [],
+      itemSource: new Map(),
       partialByItem: new Map(),
       sampleRateHz: options.sampleRateHz ?? DEFAULT_SAMPLE_RATE,
       realtimeModel: options.realtimeModel ?? DEFAULT_REALTIME_MODEL,
@@ -132,7 +142,7 @@ export class OpenAIRealtimeTranscription {
       fallbackUsed: false,
       realtimeFailed: false,
       closed: false,
-      isBufferCapped: false
+      isBufferCappedBySource: buildSourceRecord(() => false)
     };
 
     this.sessions.set(interviewId, state);
@@ -157,7 +167,10 @@ export class OpenAIRealtimeTranscription {
       throw new Error("audioBase64 is required for transcription chunk ingestion.");
     }
 
-    const speaker: Speaker = input.speaker ?? "customer";
+    const source = input.source;
+    if (source !== "mic" && source !== "system") {
+      throw new Error("source must be either 'mic' or 'system'.");
+    }
     const sampleRateHz = input.sampleRateHz ?? state.sampleRateHz;
     state.sampleRateHz = sampleRateHz;
 
@@ -166,17 +179,17 @@ export class OpenAIRealtimeTranscription {
       throw new Error("Received empty audio chunk.");
     }
 
-    state.bufferedChunks.push(pcmChunk);
+    state.bufferedChunksBySource[source].push(pcmChunk);
 
     // Trim buffered chunks to stay under the cap so memory doesn't grow unboundedly.
-    let totalBytes = state.bufferedChunks.reduce((sum, c) => sum + c.length, 0);
-    while (totalBytes > MAX_FALLBACK_CHUNKS_BYTES && state.bufferedChunks.length > 1) {
-      const removed = state.bufferedChunks.shift()!;
+    let totalBytes = state.bufferedChunksBySource[source].reduce((sum, c) => sum + c.length, 0);
+    while (totalBytes > MAX_FALLBACK_CHUNKS_BYTES && state.bufferedChunksBySource[source].length > 1) {
+      const removed = state.bufferedChunksBySource[source].shift()!;
       totalBytes -= removed.length;
-      state.isBufferCapped = true;
+      state.isBufferCappedBySource[source] = true;
     }
 
-    state.speakerQueue.push(speaker);
+    state.sourceQueue.push(source);
 
     if (!state.ws || state.ws.readyState !== WebSocket.OPEN) {
       state.realtimeFailed = true;
@@ -240,13 +253,18 @@ export class OpenAIRealtimeTranscription {
     // Allow the final commit to be processed by the server
     await wait(500);
 
-    const needsFallback = state.transcriptSegmentsProduced === 0 && state.bufferedChunks.length > 0;
+    const needsFallback = state.transcriptSegmentsProduced === 0;
+    const sourcesNeedingFallback = needsFallback
+      ? AUDIO_SOURCES.filter((source) => state.bufferedChunksBySource[source].length > 0)
+      : [];
 
-    if (needsFallback) {
-      try {
-        await this.runWhisperFallback(state);
-      } catch (error) {
-        this.deps.logger?.warn?.("Whisper fallback failed", error);
+    if (needsFallback || sourcesNeedingFallback.length > 0) {
+      for (const source of sourcesNeedingFallback) {
+        try {
+          await this.runWhisperFallback(state, source);
+        } catch (error) {
+          this.deps.logger?.warn?.("Whisper fallback failed", { error, source });
+        }
       }
     }
 
@@ -391,8 +409,8 @@ export class OpenAIRealtimeTranscription {
     if (type === "input_audio_buffer.committed") {
       const itemId = String(event.item_id ?? "");
       if (itemId) {
-        const speaker = state.speakerQueue.shift() ?? "customer";
-        state.itemSpeaker.set(itemId, speaker);
+        const source = state.sourceQueue.shift() ?? "system";
+        state.itemSource.set(itemId, source);
       }
       return;
     }
@@ -418,15 +436,16 @@ export class OpenAIRealtimeTranscription {
       }
 
       state.partialByItem.delete(itemId);
-      const speaker = state.itemSpeaker.get(itemId) ?? "customer";
-      state.itemSpeaker.delete(itemId);
+      const source = state.itemSource.get(itemId) ?? "system";
+      state.itemSource.delete(itemId);
 
       this.emitSegments(state, [
         {
           id: randomUUID(),
-          speaker,
+          speaker: speakerForSource(source),
           text: finalText,
-          timestampMs: Date.now()
+          timestampMs: Date.now(),
+          source
         }
       ]);
     }
@@ -441,17 +460,19 @@ export class OpenAIRealtimeTranscription {
     this.deps.onTranscriptSegments(state.interviewId, segments);
   }
 
-  private async runWhisperFallback(state: TranscriptionSessionState) {
+  private async runWhisperFallback(state: TranscriptionSessionState, source: Source) {
     const apiKey = await this.deps.getOpenAIKey();
     if (!apiKey) {
       throw new Error("OpenAI provider key not found for Whisper fallback.");
     }
 
-    if (state.isBufferCapped) {
-      this.deps.logger?.warn?.("Whisper fallback audio is truncated: buffer was capped at 10 minutes. Earlier audio was dropped.");
+    if (state.isBufferCappedBySource[source]) {
+      this.deps.logger?.warn?.("Whisper fallback audio is truncated: buffer was capped at 10 minutes. Earlier audio was dropped.", {
+        source
+      });
     }
 
-    const wav = buildWavFromPcm16(state.bufferedChunks, state.sampleRateHz);
+    const wav = buildWavFromPcm16(state.bufferedChunksBySource[source], state.sampleRateHz);
     const form = new FormData();
     form.append("model", state.fallbackModel);
     if (state.language) {
@@ -488,9 +509,10 @@ export class OpenAIRealtimeTranscription {
     this.emitSegments(state, [
       {
         id: randomUUID(),
-        speaker: "customer",
+        speaker: speakerForSource(source),
         text,
-        timestampMs: Date.now()
+        timestampMs: Date.now(),
+        source
       }
     ]);
   }

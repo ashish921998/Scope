@@ -14,6 +14,8 @@ export type SignalType =
   | "analytics_insight";
 
 export type SignalSource = IntegrationProvider | "interview" | "research_upload";
+export type AudioChunkSource = "mic" | "system";
+export type TranscriptSpeaker = "interviewer" | "customer" | "system" | "me" | "speaker_remote";
 
 export interface EvidenceRef {
   id: string;
@@ -38,9 +40,10 @@ export interface Signal {
 
 export interface TranscriptSegment {
   id: string;
-  speaker: "interviewer" | "customer" | "system";
+  speaker: TranscriptSpeaker;
   text: string;
   timestampMs: number;
+  source?: AudioChunkSource;
 }
 
 export interface InterviewDebrief {

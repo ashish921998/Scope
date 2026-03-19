@@ -85,8 +85,9 @@ export const registerInterviewRoutes = (app: Express, deps: InterviewRouteDeps) 
     try {
       const result = await transcription.appendAudio(req.params.id, {
         audioBase64: req.body?.audioBase64,
-        speaker: req.body?.speaker,
-        sampleRateHz: req.body?.sampleRateHz
+        source: req.body?.source,
+        sampleRateHz: req.body?.sampleRateHz,
+        timestampMs: req.body?.timestampMs
       });
       res.status(202).json(result);
     } catch (error) {
