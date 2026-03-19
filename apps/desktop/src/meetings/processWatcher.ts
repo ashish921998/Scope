@@ -19,7 +19,10 @@ export const parseProcessList = (stdout: string): MeetingProcessPresence[] => {
 
   for (const line of lines) {
     const normalized = line.toLowerCase();
-    if (!seen.has("zoom") && (normalized.includes("/zoom.us") || normalized.endsWith("/zoom") || normalized === "zoom")) {
+    if (
+      !seen.has("zoom") &&
+      (normalized.includes("/zoom.us") || normalized.includes("zoom.us") || normalized.endsWith("/zoom") || normalized === "zoom")
+    ) {
       seen.add("zoom");
       matches.push({
         provider: "zoom",
@@ -31,7 +34,12 @@ export const parseProcessList = (stdout: string): MeetingProcessPresence[] => {
 
     if (
       !seen.has("teams") &&
-      (normalized.includes("microsoft teams") || normalized.endsWith("/teams") || normalized.endsWith("/teams.app/contents/macos/teams"))
+      (
+        normalized.includes("microsoft teams") ||
+        normalized.endsWith("/teams") ||
+        normalized.endsWith("/teams.app/contents/macos/teams") ||
+        normalized === "teams"
+      )
     ) {
       seen.add("teams");
       matches.push({
@@ -47,7 +55,7 @@ export const parseProcessList = (stdout: string): MeetingProcessPresence[] => {
 
 export const listMeetingProcesses = async (): Promise<MeetingProcessPresence[]> =>
   new Promise((resolve, reject) => {
-    execFile("ps", ["-ax", "-o", "comm="], (error, stdout) => {
+    execFile("ps", ["-ax", "-o", "command="], (error, stdout) => {
       if (error) {
         reject(error);
         return;

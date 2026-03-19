@@ -117,6 +117,14 @@ export const findMeetingCandidate = (
     const end = Date.parse(event.endAt);
     return Number.isFinite(start) && Number.isFinite(end) && start - 15 * 60_000 <= nowMs && end + 5 * 60_000 >= nowMs;
   };
+  const scoreEvent = (event: CalendarEvent, provider: "zoom" | "teams") => {
+    const start = Date.parse(event.startAt);
+    const end = Date.parse(event.endAt);
+    const activeBonus = start <= nowMs && end >= nowMs ? 1_000_000 : 0;
+    const providerBonus = eventMatchesProcess(event, provider) ? 100_000 : 0;
+    const distancePenalty = Math.abs(start - nowMs);
+    return activeBonus + providerBonus - distancePenalty;
+  };
 
   const confidenceRank: Record<MeetingConfidence, number> = {
     low: 0,
@@ -125,10 +133,9 @@ export const findMeetingCandidate = (
   };
 
   for (const process of processes) {
-    const nearbyEvent =
-      events.find((event) => isNearby(event) && eventMatchesProcess(event, process.provider)) ??
-      events.find((event) => isNearby(event)) ??
-      undefined;
+    const nearbyEvent = [...events]
+      .filter(isNearby)
+      .sort((left, right) => scoreEvent(right, process.provider) - scoreEvent(left, process.provider))[0];
 
     const candidate = !nearbyEvent
       ? {
@@ -156,6 +163,8 @@ export const findMeetingCandidate = (
 export class GoogleCalendarSync {
   private timer: NodeJS.Timeout | null = null;
   private snapshot: CalendarSnapshot = { events: [] };
+  private running = false;
+  private stopped = true;
 
   constructor(
     private readonly deps: {
@@ -172,8 +181,13 @@ export class GoogleCalendarSync {
     if (this.timer) {
       return;
     }
+    this.stopped = false;
 
     const run = async () => {
+      if (this.stopped || this.running) {
+        return;
+      }
+      this.running = true;
       try {
         const events = await this.fetchUpcomingEvents();
         this.snapshot = {
@@ -188,18 +202,23 @@ export class GoogleCalendarSync {
           lastError: error instanceof Error ? error.message : String(error)
         };
         this.deps.onError?.(error);
+      } finally {
+        this.running = false;
+        if (!this.stopped) {
+          this.timer = setTimeout(() => {
+            void run();
+          }, this.deps.refreshMs ?? 300_000);
+        }
       }
     };
 
     void run();
-    this.timer = setInterval(() => {
-      void run();
-    }, this.deps.refreshMs ?? 300_000);
   }
 
   stop() {
+    this.stopped = true;
     if (this.timer) {
-      clearInterval(this.timer);
+      clearTimeout(this.timer);
       this.timer = null;
     }
   }
