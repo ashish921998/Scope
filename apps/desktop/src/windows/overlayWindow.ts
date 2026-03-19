@@ -49,7 +49,16 @@ export class OverlayWindowController {
       this.state = null;
     });
 
-    await this.deps.loadOverlay(win, session);
+    try {
+      await this.deps.loadOverlay(win, session);
+    } catch (error) {
+      if (!win.isDestroyed()) {
+        win.destroy();
+      }
+      this.window = null;
+      this.state = null;
+      throw error;
+    }
     this.state = {
       ...session,
       visible: true

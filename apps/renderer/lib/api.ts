@@ -12,15 +12,17 @@ const getToken = async (): Promise<string | null> => {
 };
 
 export const fetchJson = async (path: string, init?: RequestInit) => {
-  if (!cachedBaseUrl && typeof window !== "undefined" && window.scope?.getServiceBaseUrl) {
+  let baseUrl = cachedBaseUrl;
+  if (!baseUrl && typeof window !== "undefined" && window.scope?.getServiceBaseUrl) {
     try {
-      cachedBaseUrl = await window.scope.getServiceBaseUrl();
+      baseUrl = await window.scope.getServiceBaseUrl();
+      cachedBaseUrl = baseUrl;
     } catch {
-      cachedBaseUrl = DEFAULT_API;
+      baseUrl = DEFAULT_API;
     }
   }
   const token = await getToken();
-  const response = await fetch(`${cachedBaseUrl ?? DEFAULT_API}${path}`, {
+  const response = await fetch(`${baseUrl ?? DEFAULT_API}${path}`, {
     ...init,
     headers: {
       "Content-Type": "application/json",

@@ -39,7 +39,7 @@ const GOOGLE_PROVIDER: IntegrationProvider = "google_calendar";
 
 const expiresSoon = (expiresAt?: string, skewMs = 90_000) => {
   if (!expiresAt) {
-    return false;
+    return true;
   }
   const expiry = Date.parse(expiresAt);
   return Number.isFinite(expiry) && expiry - Date.now() <= skewMs;
@@ -112,6 +112,11 @@ export const findMeetingCandidate = (
 ): MeetingCandidate | null => {
   const nowMs = now.getTime();
   let bestCandidate: MeetingCandidate | null = null;
+  const isNearby = (event: CalendarEvent) => {
+    const start = Date.parse(event.startAt);
+    const end = Date.parse(event.endAt);
+    return Number.isFinite(start) && Number.isFinite(end) && start - 15 * 60_000 <= nowMs && end + 5 * 60_000 >= nowMs;
+  };
 
   const confidenceRank: Record<MeetingConfidence, number> = {
     low: 0,
@@ -121,11 +126,9 @@ export const findMeetingCandidate = (
 
   for (const process of processes) {
     const nearbyEvent =
-      events.find((event) => {
-        const start = Date.parse(event.startAt);
-        const end = Date.parse(event.endAt);
-        return Number.isFinite(start) && Number.isFinite(end) && start - 15 * 60_000 <= nowMs && end + 5 * 60_000 >= nowMs;
-      }) ?? undefined;
+      events.find((event) => isNearby(event) && eventMatchesProcess(event, process.provider)) ??
+      events.find((event) => isNearby(event)) ??
+      undefined;
 
     const candidate = !nearbyEvent
       ? {

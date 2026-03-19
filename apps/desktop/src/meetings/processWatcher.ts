@@ -108,7 +108,7 @@ export class MeetingProcessWatcher {
   stop() {
     this.stopped = true;
     if (this.timer) {
-      clearInterval(this.timer);
+      clearTimeout(this.timer);
       this.timer = null;
     }
   }

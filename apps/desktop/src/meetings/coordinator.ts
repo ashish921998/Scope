@@ -47,6 +47,7 @@ export class MeetingCoordinator {
     try {
       const confirmed = await this.deps.promptUser(candidate);
       if (!confirmed) {
+        this.lastPromptKey = null;
         return false;
       }
 
