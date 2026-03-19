@@ -9,6 +9,7 @@ const normalizePermission = (value: string): MediaPermissionState => {
       return "denied";
     case "restricted":
       return "restricted";
+    case "unknown":
     case "not-determined":
       return "not-determined";
     default:

@@ -70,7 +70,9 @@ const buildAuthUrl = (provider: IntegrationProvider, redirectUri: string, state:
       scope: process.env.GOOGLE_SCOPES ?? "openid email profile https://www.googleapis.com/auth/calendar.readonly",
       state,
       access_type: "offline",
-      prompt: "consent"
+      prompt: "consent",
+      code_challenge: codeChallenge,
+      code_challenge_method: "S256"
     });
     return `https://accounts.google.com/o/oauth2/v2/auth?${params.toString()}`;
   }

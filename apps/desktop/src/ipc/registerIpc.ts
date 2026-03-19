@@ -1,5 +1,5 @@
 import { ipcMain, type IpcMainInvokeEvent } from "electron";
-import type { IntegrationProvider } from "@scope/types";
+import type { IntegrationProvider, MediaPermissionStatus } from "@scope/types";
 import { connectIntegrationOAuth } from "../auth/oauth";
 import type { CaptureService } from "../audio/captureService";
 import type { KeychainStore } from "../security/keychain";
@@ -56,7 +56,7 @@ export const registerIpcHandlers = (params: {
   servicePort: number;
   serviceToken: string;
   rendererUrl: string;
-  getMediaPermissionStatus: () => Promise<unknown> | unknown;
+  getMediaPermissionStatus: () => Promise<MediaPermissionStatus> | MediaPermissionStatus;
 }) => {
   const baseUrl = `http://127.0.0.1:${params.servicePort}`;
 

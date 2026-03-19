@@ -8,7 +8,8 @@ const allowedHosts = new Set([
   "app.posthog.com",
   "api.notion.com",
   "atlassian.net",
-  "auth.atlassian.com"
+  "auth.atlassian.com",
+  "oauth2.googleapis.com"
 ]);
 
 export const assertAllowedEgress = (url: string) => {

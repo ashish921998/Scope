@@ -5,6 +5,40 @@ import { parseJson } from "./parseJson";
 export class MeetingRepo {
   constructor(private readonly db: ScopeDb) {}
 
+  private mapMeetingRow(
+    row: {
+      id: string;
+      status: MeetingSession["status"];
+      title: string;
+      consent_state: MeetingSession["consentState"];
+      started_at: string | null;
+      ended_at: string | null;
+      calendar_event_id: string | null;
+      transcription_ref_json: string | null;
+      capture_source_json: string | null;
+      metadata_json: string | null;
+      created_at: string;
+      updated_at: string;
+    },
+    noteIds: string[]
+  ): MeetingSession {
+    return {
+      id: row.id,
+      status: row.status,
+      title: row.title,
+      consentState: row.consent_state,
+      startedAt: row.started_at ?? undefined,
+      endedAt: row.ended_at ?? undefined,
+      calendarEventId: row.calendar_event_id ?? undefined,
+      transcriptionRef: parseJson(row.transcription_ref_json, undefined),
+      captureSource: parseJson(row.capture_source_json, undefined),
+      metadata: parseJson(row.metadata_json, undefined),
+      noteIds,
+      createdAt: row.created_at,
+      updatedAt: row.updated_at
+    };
+  }
+
   create(session: MeetingSession) {
     this.db.sqlite
       .prepare(
@@ -127,30 +161,53 @@ export class MeetingRepo {
 
     const notes = this.listNotes(row.id);
 
-    return {
-      id: row.id,
-      status: row.status,
-      title: row.title,
-      consentState: row.consent_state,
-      startedAt: row.started_at ?? undefined,
-      endedAt: row.ended_at ?? undefined,
-      calendarEventId: row.calendar_event_id ?? undefined,
-      transcriptionRef: parseJson(row.transcription_ref_json, undefined),
-      captureSource: parseJson(row.capture_source_json, undefined),
-      metadata: parseJson(row.metadata_json, undefined),
-      noteIds: notes.map((note) => note.id),
-      createdAt: row.created_at,
-      updatedAt: row.updated_at
-    };
+    return this.mapMeetingRow(
+      row,
+      notes.map((note) => note.id)
+    );
   }
 
   list(limit = 50) {
     const rows = this.db.sqlite
-      .prepare(`SELECT id FROM meetings ORDER BY created_at DESC LIMIT ?`)
-      .all(limit) as Array<{ id: string }>;
+      .prepare(`SELECT * FROM meetings ORDER BY created_at DESC LIMIT ?`)
+      .all(limit) as Array<{
+      id: string;
+      status: MeetingSession["status"];
+      title: string;
+      consent_state: MeetingSession["consentState"];
+      started_at: string | null;
+      ended_at: string | null;
+      calendar_event_id: string | null;
+      transcription_ref_json: string | null;
+      capture_source_json: string | null;
+      metadata_json: string | null;
+      created_at: string;
+      updated_at: string;
+    }>;
 
-    return rows
-      .map((row) => this.get(row.id))
-      .filter((meeting): meeting is MeetingSession => Boolean(meeting));
+    if (rows.length === 0) {
+      return [];
+    }
+
+    const noteRows = this.db.sqlite
+      .prepare(
+        `SELECT meeting_id, id
+         FROM meeting_notes
+         WHERE meeting_id IN (${rows.map(() => "?").join(", ")})
+         ORDER BY created_at ASC`
+      )
+      .all(...rows.map((row) => row.id)) as Array<{ meeting_id: string; id: string }>;
+
+    const noteIdsByMeeting = new Map<string, string[]>();
+    for (const noteRow of noteRows) {
+      const existing = noteIdsByMeeting.get(noteRow.meeting_id);
+      if (existing) {
+        existing.push(noteRow.id);
+      } else {
+        noteIdsByMeeting.set(noteRow.meeting_id, [noteRow.id]);
+      }
+    }
+
+    return rows.map((row) => this.mapMeetingRow(row, noteIdsByMeeting.get(row.id) ?? []));
   }
 }

@@ -117,10 +117,10 @@ const inferEvidenceKind = (source: SignalIngestInput["source"]) => {
     case "meeting":
       return "transcript" as const;
     case "posthog":
+    case "google":
       return "event" as const;
     case "linear":
     case "github":
-    case "google":
     case "jira":
       return "issue" as const;
     case "notion":
