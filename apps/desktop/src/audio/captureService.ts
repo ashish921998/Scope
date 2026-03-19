@@ -48,9 +48,13 @@ export class CaptureService {
     }
 
     session.nativeSession.on("chunk", (chunk: NativeCaptureChunkEvent) => {
-      const upload = this.postChunk(session.sessionId, chunk).finally(() => {
-        session.pendingUploads.delete(upload);
-      });
+      const upload = this.postChunk(session.sessionId, chunk)
+        .catch((error) => {
+          console.warn("Native capture chunk upload failed.", error);
+        })
+        .finally(() => {
+          session.pendingUploads.delete(upload);
+        });
       session.pendingUploads.add(upload);
     });
 
