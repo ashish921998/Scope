@@ -8,7 +8,17 @@ interface CaptureSession {
 
 export class CaptureService {
   private readonly active = new Map<string, CaptureSession>();
-  constructor(private readonly localServiceBaseUrl: string) {}
+  constructor(
+    private readonly localServiceBaseUrl: string,
+    private readonly serviceToken: string
+  ) {}
+
+  private serviceHeaders() {
+    return {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${this.serviceToken}`
+    };
+  }
 
   async startCapture(sessionId: string, micDeviceId: string, systemAudio = true) {
     return this.startSession("interview", sessionId, micDeviceId, systemAudio);
@@ -31,7 +41,7 @@ export class CaptureService {
       `${this.localServiceBaseUrl}/v1/${kind === "meeting" ? "meetings" : "interviews"}/${encodeURIComponent(sessionId)}/transcription/start`,
       {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: this.serviceHeaders(),
         body: JSON.stringify({
           sampleRateHz: 24000
         })
@@ -67,7 +77,7 @@ export class CaptureService {
       `${this.localServiceBaseUrl}/v1/${kind === "meeting" ? "meetings" : "interviews"}/${encodeURIComponent(sessionId)}/transcription/stop`,
       {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: this.serviceHeaders(),
         body: JSON.stringify({})
       }
     );

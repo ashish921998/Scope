@@ -105,20 +105,26 @@ export function MeetingCard({ setOutput, registerTourTarget }: MeetingCardProps)
     }
 
     setIsStarting(true);
+    let meeting: MeetingSession | null = null;
+    let captureStarted = false;
+    let micStream: MediaStream | null = null;
+    let systemStream: MediaStream | null = null;
+    let ctx: AudioContext | null = null;
     try {
-      const meeting = await window.scope.startMeeting({
+      meeting = await window.scope.startMeeting({
         consentAccepted: true,
         title: meetingTitle
       });
       setActiveMeeting(meeting);
       await window.scope.startMeetingCapture(meeting.id, "default", includeSystemAudio);
+      captureStarted = true;
 
-      const micStream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      const systemStream =
+      micStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      systemStream =
         includeSystemAudio && navigator.mediaDevices.getDisplayMedia
           ? await navigator.mediaDevices.getDisplayMedia({ audio: true, video: true })
           : null;
-      const ctx = new AudioContext({ sampleRate: 24000 });
+      ctx = new AudioContext({ sampleRate: 24000 });
 
       const blob = new Blob([AUDIO_PROCESSOR_WORKLET], { type: "application/javascript" });
       const workletUrl = URL.createObjectURL(blob);
@@ -174,7 +180,7 @@ export function MeetingCard({ setOutput, registerTourTarget }: MeetingCardProps)
         if (systemSource) {
           systemSource.disconnect();
         }
-        micStream.getTracks().forEach((track) => track.stop());
+        micStream?.getTracks().forEach((track) => track.stop());
         systemStream?.getTracks().forEach((track) => track.stop());
         await ctx.close();
         await sendingChunkRef.current.catch(() => {});
@@ -193,6 +199,14 @@ export function MeetingCard({ setOutput, registerTourTarget }: MeetingCardProps)
       await refreshRecentMeetings();
       setOutput(`Meeting ${meeting.id} is recording.`);
     } catch (error) {
+      micStream?.getTracks().forEach((track) => track.stop());
+      systemStream?.getTracks().forEach((track) => track.stop());
+      if (ctx) {
+        await ctx.close().catch(() => {});
+      }
+      if (captureStarted && meeting?.id) {
+        await window.scope?.stopMeetingCapture?.(meeting.id).catch(() => {});
+      }
       setOutput((error as Error).message);
     } finally {
       setIsStarting(false);
