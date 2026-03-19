@@ -42,6 +42,16 @@ describe("resolveScopePmMeetingSyncConfig", () => {
   it("returns null when config is missing", () => {
     expect(resolveScopePmMeetingSyncConfig({} as NodeJS.ProcessEnv)).toBeNull();
   });
+
+  it("rejects malformed project ids", () => {
+    expect(
+      resolveScopePmMeetingSyncConfig({
+        SCOPEPM_SYNC_BASE_URL: "https://scopepm.example.com",
+        SCOPEPM_SYNC_TOKEN: "sync-token",
+        SCOPEPM_SYNC_PROJECT_ID: "42abc"
+      } as NodeJS.ProcessEnv)
+    ).toBeNull();
+  });
 });
 
 describe("syncMeetingToScopePm", () => {
@@ -106,6 +116,64 @@ describe("syncMeetingToScopePm", () => {
       sourceStartedAt: "2026-03-19T10:00:00.000Z",
       sourceEndedAt: "2026-03-19T10:30:00.000Z"
     });
+  });
+
+  it("returns updated when ScopePM reports an update", async () => {
+    const fetchImpl = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify({ action: "updated" }), {
+        status: 200,
+        headers: { "Content-Type": "application/json" }
+      })
+    );
+
+    const result = await syncMeetingToScopePm({
+      meeting: completedMeeting,
+      fetchImpl,
+      env: {
+        SCOPEPM_SYNC_BASE_URL: "https://scopepm.example.com",
+        SCOPEPM_SYNC_TOKEN: "sync-token",
+        SCOPEPM_SYNC_PROJECT_ID: "42"
+      } as NodeJS.ProcessEnv
+    });
+
+    expect(result.status).toBe("updated");
+  });
+
+  it("throws when ScopePM returns a non-ok response", async () => {
+    const fetchImpl = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify({ error: "Unauthorized" }), {
+        status: 401,
+        headers: { "Content-Type": "application/json" }
+      })
+    );
+
+    await expect(
+      syncMeetingToScopePm({
+        meeting: completedMeeting,
+        fetchImpl,
+        env: {
+          SCOPEPM_SYNC_BASE_URL: "https://scopepm.example.com",
+          SCOPEPM_SYNC_TOKEN: "sync-token",
+          SCOPEPM_SYNC_PROJECT_ID: "42"
+        } as NodeJS.ProcessEnv
+      })
+    ).rejects.toThrow("Unauthorized");
+  });
+
+  it("throws when the request fails", async () => {
+    const fetchImpl = vi.fn().mockRejectedValue(new Error("network down"));
+
+    await expect(
+      syncMeetingToScopePm({
+        meeting: completedMeeting,
+        fetchImpl,
+        env: {
+          SCOPEPM_SYNC_BASE_URL: "https://scopepm.example.com",
+          SCOPEPM_SYNC_TOKEN: "sync-token",
+          SCOPEPM_SYNC_PROJECT_ID: "42"
+        } as NodeJS.ProcessEnv
+      })
+    ).rejects.toThrow("network down");
   });
 
   it("builds a stable retry payload for the same meeting", () => {

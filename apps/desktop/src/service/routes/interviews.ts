@@ -52,14 +52,12 @@ export const registerInterviewRoutes = (app: Express, deps: InterviewRouteDeps) 
         logger?.warn("Stopping transcription failed before interview stop", { error });
       }
       const session = services.interviewService.stop(req.params.id);
-      try {
-        await syncMeetingToScopePm({
+      void syncMeetingToScopePm({
           meeting: session,
           logger
+        }).catch((error) => {
+          logger?.warn("ScopePM meeting sync failed after interview stop", { error });
         });
-      } catch (error) {
-        logger?.warn("ScopePM meeting sync failed after interview stop", { error });
-      }
       res.status(200).json(session);
     } catch (error) {
       res.status(404).json({ error: (error as Error).message });

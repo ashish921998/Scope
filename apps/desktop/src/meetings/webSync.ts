@@ -24,14 +24,16 @@ export interface ScopePmMeetingSyncResult {
   reason?: string;
 }
 
+const DEFAULT_SYNC_TIMEOUT_MS = 10_000;
+
 const trimTrailingSlash = (value: string) => value.replace(/\/+$/, "");
 
 const parseProjectId = (value: string | undefined) => {
   if (!value) {
     return null;
   }
-  const parsed = Number.parseInt(value, 10);
-  return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
+  const parsed = Number(value);
+  return Number.isInteger(parsed) && parsed > 0 ? parsed : null;
 };
 
 const buildTranscript = (meeting: InterviewSession) =>
@@ -97,14 +99,28 @@ export const syncMeetingToScopePm = async (params: {
 
   const payload = buildScopePmMeetingSyncPayload(params.meeting, config);
   const fetchImpl = params.fetchImpl ?? fetch;
-  const response = await fetchImpl(`${config.baseUrl}/api/meetings/ingest`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${config.syncToken}`
-    },
-    body: JSON.stringify(payload)
-  });
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), DEFAULT_SYNC_TIMEOUT_MS);
+  let response: Response;
+
+  try {
+    response = await fetchImpl(`${config.baseUrl}/api/meetings/ingest`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${config.syncToken}`
+      },
+      body: JSON.stringify(payload),
+      signal: controller.signal
+    });
+  } catch (error) {
+    if ((error as Error).name === "AbortError") {
+      throw new Error(`ScopePM meeting sync timed out after ${DEFAULT_SYNC_TIMEOUT_MS}ms`);
+    }
+    throw error;
+  } finally {
+    clearTimeout(timeoutId);
+  }
 
   const data = (await response.json().catch(() => ({}))) as {
     action?: "created" | "updated";
