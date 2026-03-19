@@ -9,5 +9,7 @@ export * from "./dossier/validator";
 export * from "./export/formatters";
 export * from "./integrations/linearAdapter";
 export * from "./integrations/jiraAdapter";
+export * from "./meetings/notesPipeline";
+export * from "./meetings/service";
 export * from "./security/redaction";
 export * from "./security/egress";

@@ -10,6 +10,12 @@ import { classifySignal } from "./classifier";
 import { isDuplicateBySimilarity } from "./dedupe";
 import { normalizeSignalInput } from "./normalizer";
 
+interface TranscriptIngestInput {
+  source: "interview" | "meeting";
+  sessionId: string;
+  segments: Array<{ id: string; text: string; timestampMs: number }>;
+}
+
 export class SignalService {
   constructor(
     private readonly signalRepo: SignalRepo,
@@ -109,11 +115,25 @@ export class SignalService {
       scannedSignals: signals.length
     };
   }
+
+  ingestTranscriptSegments(input: TranscriptIngestInput) {
+    return input.segments.map((segment) =>
+      this.ingest({
+        source: input.source,
+        sourceRef: `${input.sessionId}:${segment.id}`,
+        text: segment.text,
+        evidenceKind: "transcript",
+        evidenceUri: `${input.source}://${input.sessionId}/segment/${segment.id}`,
+        timestampMs: segment.timestampMs
+      })
+    );
+  }
 }
 
 const inferEvidenceKind = (source: SignalIngestInput["source"]) => {
   switch (source) {
     case "interview":
+    case "meeting":
       return "transcript" as const;
     case "posthog":
       return "event" as const;

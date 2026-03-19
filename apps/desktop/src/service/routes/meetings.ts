@@ -4,31 +4,30 @@ import type { CoreServices } from "@scope/core";
 import type { OpenAIRealtimeTranscription } from "../../transcription";
 import type { AppLogger } from "../../telemetry/logger";
 
-interface InterviewRouteDeps {
+interface MeetingRouteDeps {
   services: CoreServices;
   transcription: OpenAIRealtimeTranscription;
   logger?: AppLogger;
 }
 
-export const registerInterviewRoutes = (app: Express, deps: InterviewRouteDeps) => {
+export const registerMeetingRoutes = (app: Express, deps: MeetingRouteDeps) => {
   const { services, transcription, logger } = deps;
 
-  app.post("/v1/interviews/start", (req, res) => {
+  app.post("/v1/meetings/start", (_req, res) => {
     try {
-      const consentAccepted = Boolean(req.body?.consentAccepted);
-      const session = services.interviewService.start(consentAccepted);
+      const session = services.meetingService.start();
       res.status(201).json(session);
     } catch (error) {
       res.status(400).json({ error: (error as Error).message });
     }
   });
 
-  app.post("/v1/interviews/:id/transcript", (req, res) => {
+  app.post("/v1/meetings/:id/transcript", (req, res) => {
     try {
       const segments = (req.body?.segments ?? []) as TranscriptSegment[];
-      const result = services.interviewService.appendTranscript(req.params.id, segments);
+      const result = services.meetingService.appendTranscript(req.params.id, segments);
       services.signalService.ingestTranscriptSegments({
-        source: "interview",
+        source: "meeting",
         sessionId: req.params.id,
         segments
       });
@@ -38,32 +37,40 @@ export const registerInterviewRoutes = (app: Express, deps: InterviewRouteDeps) 
     }
   });
 
-  app.post("/v1/interviews/:id/stop", async (req, res) => {
+  app.post("/v1/meetings/:id/stop", async (req, res) => {
     try {
       try {
         await transcription.stop(req.params.id);
       } catch (error) {
-        logger?.warn("Stopping transcription failed before interview stop", { error });
+        logger?.warn("Stopping transcription failed before meeting stop", { error });
       }
-      const session = services.interviewService.stop(req.params.id);
+      const session = await services.meetingService.stop(req.params.id);
       res.status(200).json(session);
     } catch (error) {
       res.status(404).json({ error: (error as Error).message });
     }
   });
 
-  app.get("/v1/interviews/:id/transcript", (req, res) => {
+  app.get("/v1/meetings/:id", (req, res) => {
     try {
-      const transcript = services.interviewService.getTranscript(req.params.id);
-      res.status(200).json(transcript);
+      const meeting = services.meetingService.get(req.params.id);
+      res.status(200).json(meeting);
     } catch (error) {
       res.status(404).json({ error: (error as Error).message });
     }
   });
 
-  app.post("/v1/interviews/:id/transcription/start", async (req, res) => {
+  app.get("/v1/meetings", (_req, res) => {
     try {
-      services.interviewService.getTranscript(req.params.id);
+      res.status(200).json({ items: services.meetingService.list() });
+    } catch (error) {
+      res.status(500).json({ error: (error as Error).message });
+    }
+  });
+
+  app.post("/v1/meetings/:id/transcription/start", async (req, res) => {
+    try {
+      services.meetingService.get(req.params.id);
       const started = await transcription.start(req.params.id, {
         realtimeModel: req.body?.realtimeModel,
         fallbackModel: req.body?.fallbackModel,
@@ -76,7 +83,7 @@ export const registerInterviewRoutes = (app: Express, deps: InterviewRouteDeps) 
     }
   });
 
-  app.post("/v1/interviews/:id/transcription/chunk", async (req, res) => {
+  app.post("/v1/meetings/:id/transcription/chunk", async (req, res) => {
     try {
       const result = await transcription.appendAudio(req.params.id, {
         audioBase64: req.body?.audioBase64,
@@ -89,18 +96,18 @@ export const registerInterviewRoutes = (app: Express, deps: InterviewRouteDeps) 
     }
   });
 
-  app.post("/v1/interviews/:id/transcription/stop", async (req, res) => {
+  app.post("/v1/meetings/:id/transcription/stop", async (req, res) => {
     try {
       const result = await transcription.stop(req.params.id);
-      const transcript = services.interviewService.getTranscript(req.params.id);
+      const meeting = services.meetingService.get(req.params.id);
       services.signalService.ingestTranscriptSegments({
-        source: "interview",
+        source: "meeting",
         sessionId: req.params.id,
-        segments: transcript.transcriptSegments
+        segments: meeting.transcriptSegments
       });
       res.status(200).json({
         ...result,
-        transcript
+        meeting
       });
     } catch (error) {
       res.status(400).json({ error: (error as Error).message });

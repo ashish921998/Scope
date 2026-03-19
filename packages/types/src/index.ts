@@ -13,7 +13,7 @@ export type SignalType =
   | "positive_feedback"
   | "analytics_insight";
 
-export type SignalSource = IntegrationProvider | "interview" | "research_upload";
+export type SignalSource = IntegrationProvider | "interview" | "meeting" | "research_upload";
 
 export interface EvidenceRef {
   id: string;
@@ -60,6 +60,22 @@ export interface InterviewSession {
   followups: string[];
   debrief?: InterviewDebrief;
   consentAccepted: boolean;
+  startedAt: string;
+  endedAt?: string;
+}
+
+export interface MeetingNotes {
+  summary: string;
+  decisions: string[];
+  actionItems: string[];
+  followUps: string[];
+}
+
+export interface MeetingSession {
+  id: string;
+  status: "active" | "completed";
+  transcriptSegments: TranscriptSegment[];
+  notes?: MeetingNotes;
   startedAt: string;
   endedAt?: string;
 }
