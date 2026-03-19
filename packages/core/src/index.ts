@@ -1,5 +1,6 @@
 export * from "./app";
 export * from "./ai/embeddings";
+export * from "./meetings/service";
 export * from "./signals/classifier";
 export * from "./signals/dedupe";
 export * from "./signals/service";

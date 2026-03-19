@@ -1,12 +1,19 @@
 import { randomBytes } from "node:crypto";
 import { createCoreServices } from "@scope/core";
+import type { TranscriptSegment, TranscriptionSessionRef } from "@scope/types";
 import cors from "cors";
 import express from "express";
 import type { KeychainStore } from "../security/keychain";
 import { IntegrationSyncService } from "../integrations/syncService";
 import type { AppLogger } from "../telemetry/logger";
-import { OpenAIRealtimeTranscription } from "../transcription";
+import {
+  DeepgramStreamingTranscription,
+  OpenAIRealtimeTranscription,
+  TranscriptionRouter,
+  type TranscriptionProvider
+} from "../transcription";
 import { registerInterviewRoutes } from "./routes/interviews";
+import { registerMeetingRoutes } from "./routes/meetings";
 import { registerSignalRoutes } from "./routes/signals";
 import { registerDossierRoutes } from "./routes/dossiers";
 import { registerIntegrationRoutes } from "./routes/integrations";
@@ -28,6 +35,12 @@ export const startLocalService = async (params: {
   diagnosticsLogPath?: string;
   logger?: AppLogger;
   port?: number;
+  transcriptionFactory?: (deps: {
+    getOpenAIKey: () => Promise<string | null>;
+    getDeepgramKey: () => Promise<string | null>;
+    onTranscriptSegments: (ref: TranscriptionSessionRef, segments: TranscriptSegment[]) => void;
+    logger?: AppLogger;
+  }) => TranscriptionProvider;
 }): Promise<LocalService> => {
   const app = express();
   const startupAt = new Date();
@@ -43,17 +56,36 @@ export const startLocalService = async (params: {
     keychainStore: params.keychainStore,
     logger: params.logger
   });
-  const transcription = new OpenAIRealtimeTranscription({
+  const transcriptionDeps = {
     getOpenAIKey: () => params.keychainStore.getProviderKey("openai"),
-    onTranscriptSegments: (interviewId, segments) => {
+    getDeepgramKey: () => params.keychainStore.getProviderKey("deepgram"),
+    onTranscriptSegments: (ref: TranscriptionSessionRef, segments: TranscriptSegment[]) => {
       try {
-        services.interviewService.appendTranscript(interviewId, segments);
+        if (ref.kind === "meeting") {
+          services.meetingService.appendTranscript(ref.id, segments);
+          return;
+        }
+        services.interviewService.appendTranscript(ref.id, segments);
       } catch (error) {
-        params.logger?.warn("Unable to append realtime transcript segment", { error });
+        params.logger?.warn("Unable to append realtime transcript segment", { error, ref });
       }
     },
-    logger: params.logger ?? console
-  });
+    logger: params.logger
+  };
+  const transcription =
+    params.transcriptionFactory?.(transcriptionDeps) ??
+    new TranscriptionRouter({
+      interview: new OpenAIRealtimeTranscription({
+        getOpenAIKey: transcriptionDeps.getOpenAIKey,
+        onTranscriptSegments: transcriptionDeps.onTranscriptSegments,
+        logger: params.logger ?? console
+      }),
+      meeting: new DeepgramStreamingTranscription({
+        getDeepgramKey: transcriptionDeps.getDeepgramKey,
+        onTranscriptSegments: transcriptionDeps.onTranscriptSegments,
+        logger: params.logger ?? console
+      })
+    });
   const port = params.port ?? 4010;
   const autoSyncSeconds = Number(process.env.SCOPE_INTEGRATIONS_AUTO_SYNC_SECONDS ?? "0");
   const autoSyncEnabled = Number.isFinite(autoSyncSeconds) && autoSyncSeconds > 0;
@@ -121,6 +153,7 @@ export const startLocalService = async (params: {
   });
 
   registerInterviewRoutes(app, { services, transcription, logger: params.logger });
+  registerMeetingRoutes(app, { services, transcription, logger: params.logger });
   registerSignalRoutes(app, { services });
   registerDossierRoutes(app, { services, keychainStore: params.keychainStore });
   registerIntegrationRoutes(app, { keychainStore: params.keychainStore, integrationSync, logger: params.logger });

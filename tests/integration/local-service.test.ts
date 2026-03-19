@@ -111,6 +111,28 @@ describe("local service API", () => {
     expect(String(startTranscription.data.error)).toContain("OpenAI provider key");
   });
 
+  it("exposes meeting transcription endpoints with Deepgram key enforcement", async () => {
+    const startMeeting = await jsonFetch(`http://127.0.0.1:${port}/v1/meetings/start`, token, {
+      method: "POST",
+      body: JSON.stringify({ title: "Customer sync" })
+    });
+    expect(startMeeting.response.status).toBe(201);
+
+    const meetingId = startMeeting.data.id as string;
+
+    const startTranscription = await jsonFetch(
+      `http://127.0.0.1:${port}/v1/meetings/${meetingId}/transcription/start`,
+      token,
+      {
+        method: "POST",
+        body: JSON.stringify({ language: "en" })
+      }
+    );
+
+    expect(startTranscription.response.status).toBe(400);
+    expect(String(startTranscription.data.error)).toContain("Deepgram provider key");
+  });
+
   it("auto-ingests interview transcript segments into signal stream", async () => {
     const interview = await jsonFetch(`http://127.0.0.1:${port}/v1/interviews/start`, token, {
       method: "POST",
@@ -140,6 +162,110 @@ describe("local service API", () => {
       (item) => item.source === "interview" && item.sourceRef.includes(interviewId)
     );
     expect(interviewSignal).toBeTruthy();
+  });
+
+  it("routes transcript callbacks by explicit session kind", async () => {
+    const routedDir = mkdtempSync(join(tmpdir(), "scope-test-routing-"));
+    const routedPort = 4515;
+    let shutdownCalled = false;
+
+    const routedService = await startLocalService({
+      dbPath: join(routedDir, "scope.db"),
+      port: routedPort,
+      keychainStore: {
+        saveProviderKey: async () => {},
+        getProviderKey: async () => null,
+        saveIntegrationToken: async () => {},
+        getIntegrationToken: async () => null
+      } as never,
+      transcriptionFactory: ({ onTranscriptSegments }) => ({
+        start: async (ref) => ({
+          sessionId: ref.id,
+          sessionKind: ref.kind,
+          started: true
+        }),
+        appendAudio: async (ref) => {
+          onTranscriptSegments(ref, [
+            {
+              id: `${ref.kind}-seg`,
+              speaker: ref.kind === "meeting" ? "system" : "customer",
+              text: `${ref.kind} transcript`,
+              timestampMs: 123
+            }
+          ]);
+          return { accepted: true };
+        },
+        stop: async (ref) => ({
+          sessionId: ref.id,
+          sessionKind: ref.kind,
+          realtimeEvents: 0,
+          transcriptSegmentsProduced: 1,
+          fallbackUsed: false
+        }),
+        shutdown: async () => {
+          shutdownCalled = true;
+        }
+      })
+    });
+
+    const routedToken = routedService.serviceToken;
+
+    try {
+      const interview = await jsonFetch(`http://127.0.0.1:${routedPort}/v1/interviews/start`, routedToken, {
+        method: "POST",
+        body: JSON.stringify({ consentAccepted: true })
+      });
+      expect(interview.response.status).toBe(201);
+
+      const meeting = await jsonFetch(`http://127.0.0.1:${routedPort}/v1/meetings/start`, routedToken, {
+        method: "POST",
+        body: JSON.stringify({ title: "Weekly sync" })
+      });
+      expect(meeting.response.status).toBe(201);
+
+      const interviewId = String(interview.data.id);
+      const meetingId = String(meeting.data.id);
+
+      const interviewChunk = await jsonFetch(
+        `http://127.0.0.1:${routedPort}/v1/interviews/${interviewId}/transcription/chunk`,
+        routedToken,
+        {
+          method: "POST",
+          body: JSON.stringify({ audioBase64: "YQ==" })
+        }
+      );
+      expect(interviewChunk.response.status).toBe(202);
+
+      const meetingChunk = await jsonFetch(
+        `http://127.0.0.1:${routedPort}/v1/meetings/${meetingId}/transcription/chunk`,
+        routedToken,
+        {
+          method: "POST",
+          body: JSON.stringify({ audioBase64: "YQ==" })
+        }
+      );
+      expect(meetingChunk.response.status).toBe(202);
+
+      const interviewTranscript = await jsonFetch(
+        `http://127.0.0.1:${routedPort}/v1/interviews/${interviewId}/transcript`,
+        routedToken
+      );
+      expect(interviewTranscript.response.status).toBe(200);
+      expect(interviewTranscript.data.transcriptSegments).toHaveLength(1);
+      expect(interviewTranscript.data.transcriptSegments[0].text).toBe("interview transcript");
+
+      const meetingTranscript = await jsonFetch(
+        `http://127.0.0.1:${routedPort}/v1/meetings/${meetingId}/transcript`,
+        routedToken
+      );
+      expect(meetingTranscript.response.status).toBe(200);
+      expect(meetingTranscript.data.transcriptSegments).toHaveLength(1);
+      expect(meetingTranscript.data.transcriptSegments[0].text).toBe("meeting transcript");
+    } finally {
+      await routedService.close();
+      expect(shutdownCalled).toBe(true);
+      rmSync(routedDir, { recursive: true, force: true });
+    }
   });
 
   it("starts with strict encrypted DB mode enabled", async () => {

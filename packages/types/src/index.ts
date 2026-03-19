@@ -4,7 +4,10 @@ export type IntegrationProvider =
   | "github"
   | "posthog"
   | "notion"
-  | "jira";
+  | "jira"
+  | "google";
+
+export type ProviderKeyName = "openai" | "anthropic" | "deepgram";
 
 export type SignalType =
   | "pain_point"
@@ -13,7 +16,7 @@ export type SignalType =
   | "positive_feedback"
   | "analytics_insight";
 
-export type SignalSource = IntegrationProvider | "interview" | "research_upload";
+export type SignalSource = IntegrationProvider | "interview" | "meeting" | "research_upload";
 
 export interface EvidenceRef {
   id: string;
@@ -41,6 +44,49 @@ export interface TranscriptSegment {
   speaker: "interviewer" | "customer" | "system";
   text: string;
   timestampMs: number;
+}
+
+export interface MeetingParticipant {
+  id: string;
+  name: string;
+  email?: string;
+  role?: string;
+}
+
+export interface MeetingActionItem {
+  text: string;
+  assignee?: string;
+  sourceSegmentIds?: string[];
+}
+
+export interface MeetingNotes {
+  summary: string;
+  keyDecisions: string[];
+  actionItems: MeetingActionItem[];
+  topics: string[];
+  followUps: string[];
+  sentiment?: string;
+}
+
+export interface MeetingSession {
+  id: string;
+  title: string;
+  status: "active" | "completed";
+  platform?: string;
+  startedAt: string;
+  endedAt?: string;
+  participants: MeetingParticipant[];
+  transcriptSegments: TranscriptSegment[];
+  notes?: MeetingNotes;
+  calendarEventId?: string;
+  durationMs?: number;
+}
+
+export type TranscriptionSessionKind = "interview" | "meeting";
+
+export interface TranscriptionSessionRef {
+  id: string;
+  kind: TranscriptionSessionKind;
 }
 
 export interface InterviewDebrief {
@@ -119,7 +165,7 @@ export interface GhostScanResult {
 }
 
 export interface ProviderKeyInput {
-  provider: "openai" | "anthropic";
+  provider: ProviderKeyName;
   key: string;
 }
 

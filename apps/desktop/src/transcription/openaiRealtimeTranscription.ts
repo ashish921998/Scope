@@ -1,33 +1,20 @@
 import { randomUUID } from "node:crypto";
 import { Buffer } from "node:buffer";
 import WebSocket, { type RawData } from "ws";
-import type { TranscriptSegment } from "@scope/types";
+import type { TranscriptSegment, TranscriptionSessionRef } from "@scope/types";
 import { assertAllowedEgress, safeFetch } from "@scope/core";
+import type {
+  AudioChunkInput,
+  StartTranscriptionOptions,
+  StopTranscriptionResult,
+  TranscriptionProvider
+} from "./types";
 
 type Speaker = TranscriptSegment["speaker"];
-
-interface StartTranscriptionOptions {
-  realtimeModel?: string;
-  fallbackModel?: string;
-  language?: string;
-  sampleRateHz?: number;
-}
-
-interface AudioChunkInput {
-  audioBase64: string;
-  speaker?: Speaker;
-  sampleRateHz?: number;
-}
-
-interface StopTranscriptionResult {
-  interviewId: string;
-  realtimeEvents: number;
-  transcriptSegmentsProduced: number;
-  fallbackUsed: boolean;
-}
+type InterviewSessionRef = { id: string; kind: "interview" };
 
 interface TranscriptionSessionState {
-  interviewId: string;
+  ref: InterviewSessionRef;
   ws: WebSocket | null;
   bufferedChunks: Buffer[];
   speakerQueue: Speaker[];
@@ -63,6 +50,13 @@ const safeJsonParse = (raw: string) => {
   }
 };
 
+const normalizeSpeaker = (speaker: AudioChunkInput["speaker"]): Speaker => {
+  if (speaker === "interviewer" || speaker === "customer" || speaker === "system") {
+    return speaker;
+  }
+  return "customer";
+};
+
 const buildWavFromPcm16 = (pcmChunks: Buffer[], sampleRateHz: number) => {
   const pcm = Buffer.concat(pcmChunks);
   const channels = 1;
@@ -88,22 +82,28 @@ const buildWavFromPcm16 = (pcmChunks: Buffer[], sampleRateHz: number) => {
   return Buffer.concat([header, pcm]);
 };
 
-export class OpenAIRealtimeTranscription {
+export class OpenAIRealtimeTranscription implements TranscriptionProvider {
   private readonly sessions = new Map<string, TranscriptionSessionState>();
 
   constructor(
     private readonly deps: {
       getOpenAIKey: () => Promise<string | null>;
-      onTranscriptSegments: (interviewId: string, segments: TranscriptSegment[]) => void;
+      onTranscriptSegments: (ref: TranscriptionSessionRef, segments: TranscriptSegment[]) => void;
       logger?: Pick<Console, "info" | "warn" | "error">;
     }
   ) {}
 
-  async start(interviewId: string, options: StartTranscriptionOptions = {}) {
-    const existing = this.sessions.get(interviewId);
+  async start(ref: TranscriptionSessionRef, options: StartTranscriptionOptions = {}) {
+    if (ref.kind !== "interview") {
+      throw new Error("OpenAI realtime transcription only supports interview sessions.");
+    }
+    const interviewRef: InterviewSessionRef = { id: ref.id, kind: "interview" };
+
+    const existing = this.sessions.get(interviewRef.id);
     if (existing && !existing.closed) {
       return {
-        interviewId,
+        sessionId: ref.id,
+        sessionKind: ref.kind,
         started: true,
         reused: true,
         mode: "realtime",
@@ -117,7 +117,7 @@ export class OpenAIRealtimeTranscription {
     }
 
     const state: TranscriptionSessionState = {
-      interviewId,
+      ref: interviewRef,
       ws: null,
       bufferedChunks: [],
       speakerQueue: [],
@@ -135,11 +135,12 @@ export class OpenAIRealtimeTranscription {
       isBufferCapped: false
     };
 
-    this.sessions.set(interviewId, state);
+    this.sessions.set(interviewRef.id, state);
     await this.connectRealtimeSocket(apiKey, state);
 
     return {
-      interviewId,
+      sessionId: interviewRef.id,
+      sessionKind: interviewRef.kind,
       started: true,
       reused: false,
       mode: "realtime",
@@ -147,8 +148,13 @@ export class OpenAIRealtimeTranscription {
     };
   }
 
-  async appendAudio(interviewId: string, input: AudioChunkInput) {
-    const state = this.sessions.get(interviewId);
+  async appendAudio(ref: TranscriptionSessionRef, input: AudioChunkInput) {
+    if (ref.kind !== "interview") {
+      throw new Error("OpenAI realtime transcription only supports interview sessions.");
+    }
+    const interviewRef: InterviewSessionRef = { id: ref.id, kind: "interview" };
+
+    const state = this.sessions.get(interviewRef.id);
     if (!state || state.closed) {
       throw new Error("Realtime transcription session not started for this interview.");
     }
@@ -157,7 +163,7 @@ export class OpenAIRealtimeTranscription {
       throw new Error("audioBase64 is required for transcription chunk ingestion.");
     }
 
-    const speaker: Speaker = input.speaker ?? "customer";
+    const speaker = normalizeSpeaker(input.speaker);
     const sampleRateHz = input.sampleRateHz ?? state.sampleRateHz;
     state.sampleRateHz = sampleRateHz;
 
@@ -181,7 +187,8 @@ export class OpenAIRealtimeTranscription {
     if (!state.ws || state.ws.readyState !== WebSocket.OPEN) {
       state.realtimeFailed = true;
       return {
-        interviewId,
+        sessionId: ref.id,
+        sessionKind: interviewRef.kind,
         queuedForFallback: true,
         realtimeSent: false,
         chunkBytes: pcmChunk.length
@@ -198,7 +205,8 @@ export class OpenAIRealtimeTranscription {
       state.ws.send(JSON.stringify({ type: "input_audio_buffer.commit" }));
 
       return {
-        interviewId,
+        sessionId: ref.id,
+        sessionKind: interviewRef.kind,
         queuedForFallback: false,
         realtimeSent: true,
         chunkBytes: pcmChunk.length
@@ -207,7 +215,8 @@ export class OpenAIRealtimeTranscription {
       state.realtimeFailed = true;
       this.deps.logger?.warn?.("Failed to send realtime audio chunk", error);
       return {
-        interviewId,
+        sessionId: ref.id,
+        sessionKind: interviewRef.kind,
         queuedForFallback: true,
         realtimeSent: false,
         chunkBytes: pcmChunk.length
@@ -215,11 +224,17 @@ export class OpenAIRealtimeTranscription {
     }
   }
 
-  async stop(interviewId: string): Promise<StopTranscriptionResult> {
-    const state = this.sessions.get(interviewId);
+  async stop(ref: TranscriptionSessionRef): Promise<StopTranscriptionResult> {
+    if (ref.kind !== "interview") {
+      throw new Error("OpenAI realtime transcription only supports interview sessions.");
+    }
+    const interviewRef: InterviewSessionRef = { id: ref.id, kind: "interview" };
+
+    const state = this.sessions.get(interviewRef.id);
     if (!state) {
       return {
-        interviewId,
+        sessionId: interviewRef.id,
+        sessionKind: interviewRef.kind,
         realtimeEvents: 0,
         transcriptSegmentsProduced: 0,
         fallbackUsed: false
@@ -253,7 +268,8 @@ export class OpenAIRealtimeTranscription {
     await this.closeSession(state);
 
     return {
-      interviewId,
+      sessionId: interviewRef.id,
+      sessionKind: interviewRef.kind,
       realtimeEvents: state.realtimeEvents,
       transcriptSegmentsProduced: state.transcriptSegmentsProduced,
       fallbackUsed: state.fallbackUsed
@@ -438,7 +454,7 @@ export class OpenAIRealtimeTranscription {
     }
 
     state.transcriptSegmentsProduced += segments.length;
-    this.deps.onTranscriptSegments(state.interviewId, segments);
+    this.deps.onTranscriptSegments(state.ref, segments);
   }
 
   private async runWhisperFallback(state: TranscriptionSessionState) {
@@ -461,7 +477,7 @@ export class OpenAIRealtimeTranscription {
     form.append(
       "file",
       new Blob([wav], { type: "audio/wav" }),
-      `interview-${state.interviewId}-${Date.now()}.wav`
+      `interview-${state.ref.id}-${Date.now()}.wav`
     );
 
     const response = await safeFetch("https://api.openai.com/v1/audio/transcriptions", {
@@ -517,6 +533,6 @@ export class OpenAIRealtimeTranscription {
     }
 
     state.ws = null;
-    this.sessions.delete(state.interviewId);
+    this.sessions.delete(state.ref.id);
   }
 }
