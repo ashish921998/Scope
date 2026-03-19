@@ -90,6 +90,21 @@ const buildAuthUrl = (provider: IntegrationProvider, redirectUri: string, state:
     return `https://auth.atlassian.com/authorize?${params.toString()}`;
   }
 
+  if (provider === "google_calendar") {
+    const params = new URLSearchParams({
+      client_id: process.env.GOOGLE_CLIENT_ID ?? "",
+      redirect_uri: redirectUri,
+      response_type: "code",
+      scope: process.env.GOOGLE_SCOPES ?? "https://www.googleapis.com/auth/calendar.readonly",
+      access_type: "offline",
+      prompt: "consent",
+      state,
+      code_challenge: codeChallenge,
+      code_challenge_method: "S256"
+    });
+    return `https://accounts.google.com/o/oauth2/v2/auth?${params.toString()}`;
+  }
+
   throw new Error("PostHog uses API key. Use key save flow instead of OAuth connect.");
 };
 
@@ -281,6 +296,34 @@ export const refreshIntegrationToken = async (
         ? "template_access"
         : (data.workspace_name as string | undefined),
       expiresAt: toExpiresAt(typeof data.expires_in === "number" ? data.expires_in : undefined)
+    };
+  }
+
+  if (provider === "google_calendar") {
+    const body = new URLSearchParams({
+      client_id: requireEnv("GOOGLE_CLIENT_ID"),
+      client_secret: requireEnv("GOOGLE_CLIENT_SECRET"),
+      grant_type: "refresh_token",
+      refresh_token: refreshToken
+    });
+    const response = await safeFetch("https://oauth2.googleapis.com/token", {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: body.toString()
+    });
+    const data = await parseJsonOrThrow(response, "Google token refresh");
+    if (!response.ok || typeof data.access_token !== "string") {
+      throw new Error(`Google token refresh failed: ${JSON.stringify(data)}`);
+    }
+    return {
+      provider,
+      accessToken: data.access_token,
+      refreshToken: (data.refresh_token as string | undefined) ?? refreshToken,
+      scope: (data.scope as string | undefined) ?? undefined,
+      expiresAt: toExpiresAt(typeof data.expires_in === "number" ? data.expires_in : undefined),
+      metadata: {
+        tokenType: data.token_type ?? undefined
+      }
     };
   }
 
@@ -484,6 +527,36 @@ const exchangeOAuthCode = async (
       expiresAt: toExpiresAt(typeof data.expires_in === "number" ? data.expires_in : undefined),
       metadata: {
         workspaceId: data.workspace_id ?? undefined
+      }
+    };
+  }
+
+  if (provider === "google_calendar") {
+    const body = new URLSearchParams({
+      client_id: requireEnv("GOOGLE_CLIENT_ID"),
+      client_secret: requireEnv("GOOGLE_CLIENT_SECRET"),
+      grant_type: "authorization_code",
+      code,
+      redirect_uri: redirectUri,
+      code_verifier: codeVerifier
+    });
+    const response = await safeFetch("https://oauth2.googleapis.com/token", {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: body.toString()
+    });
+    const data = await parseJsonOrThrow(response, "Google token exchange");
+    if (!response.ok || typeof data.access_token !== "string") {
+      throw new Error(`Google token exchange failed: ${JSON.stringify(data)}`);
+    }
+    return {
+      provider,
+      accessToken: data.access_token,
+      refreshToken: data.refresh_token as string | undefined,
+      scope: data.scope as string | undefined,
+      expiresAt: toExpiresAt(typeof data.expires_in === "number" ? data.expires_in : undefined),
+      metadata: {
+        tokenType: data.token_type ?? undefined
       }
     };
   }

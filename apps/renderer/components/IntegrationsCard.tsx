@@ -54,6 +54,18 @@ export function IntegrationsCard({ setOutput }: IntegrationsCardProps) {
       <button
         className="secondary"
         onClick={async () => {
+          if (!window.scope) {
+            throw new Error("Desktop IPC bridge unavailable. Run in Electron desktop app.");
+          }
+          const result = await window.scope.connectIntegration("google_calendar");
+          setOutput(JSON.stringify(result, null, 2));
+        }}
+      >
+        Connect Google Calendar
+      </button>
+      <button
+        className="secondary"
+        onClick={async () => {
           const result = await fetchJson("/v1/integrations/sync", {
             method: "POST",
             body: JSON.stringify({

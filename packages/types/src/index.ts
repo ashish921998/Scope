@@ -4,7 +4,8 @@ export type IntegrationProvider =
   | "github"
   | "posthog"
   | "notion"
-  | "jira";
+  | "jira"
+  | "google_calendar";
 
 export type SignalType =
   | "pain_point"
