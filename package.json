@@ -9,10 +9,14 @@
   "scripts": {
     "dev": "npm run dev -w apps/desktop",
     "dev:renderer": "npm run dev -w apps/renderer",
+    "dev:website": "npm run dev -w apps/website",
     "build": "npm run build --workspaces --if-present",
     "test": "vitest run",
     "test:watch": "vitest",
-    "lint": "npm run lint --workspaces --if-present"
+    "lint": "npm run lint --workspaces --if-present",
+    "dist:mac": "npm run dist:mac -w apps/desktop",
+    "smoke:packaged": "npm run smoke:packaged -w apps/desktop",
+    "release:mac": "npm test && npm run dist:mac && npm run smoke:packaged"
   },
   "devDependencies": {
     "@types/node": "^22.13.10",
@@ -20,6 +24,6 @@
     "vitest": "^3.0.9"
   },
   "engines": {
-    "node": ">=20"
+    "node": ">=22"
   }
 }

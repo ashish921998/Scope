@@ -103,7 +103,7 @@ export class InterviewService {
       status: session.status,
       transcriptSegments: session.transcriptSegments,
       followups: session.followups,
-      debrief7: session.debrief7
+      debrief: session.debrief
     };
   }
 }

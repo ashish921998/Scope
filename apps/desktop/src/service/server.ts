@@ -1,190 +1,136 @@
+import { randomBytes } from "node:crypto";
 import { createCoreServices } from "@scope/core";
-import type { IntegrationProvider, TranscriptSegment } from "@scope/types";
 import cors from "cors";
 import express from "express";
-import { dossierToMarkdown, pushDossierToJira, pushDossierToLinear } from "@scope/core";
 import type { KeychainStore } from "../security/keychain";
+import { IntegrationSyncService } from "../integrations/syncService";
+import type { AppLogger } from "../telemetry/logger";
+import { OpenAIRealtimeTranscription } from "../transcription";
+import { registerInterviewRoutes } from "./routes/interviews";
+import { registerSignalRoutes } from "./routes/signals";
+import { registerDossierRoutes } from "./routes/dossiers";
+import { registerIntegrationRoutes } from "./routes/integrations";
+import { registerDiagnosticsRoutes } from "./routes/diagnostics";
+import { createRateLimiter } from "./middleware/rateLimiter";
 
 export interface LocalService {
   port: number;
+  serviceToken: string;
   close: () => Promise<void>;
 }
 
 export const startLocalService = async (params: {
   dbPath: string;
   keychainStore: KeychainStore;
+  dbEncryptionKey?: string;
+  dbEncryptionRequired?: boolean;
+  dbCipher?: string;
+  diagnosticsLogPath?: string;
+  logger?: AppLogger;
   port?: number;
 }): Promise<LocalService> => {
   const app = express();
-  const services = createCoreServices(params.dbPath);
+  const startupAt = new Date();
+  const serviceToken = randomBytes(32).toString("hex");
+  const services = createCoreServices(params.dbPath, {
+    encryptionKey: params.dbEncryptionKey,
+    requireEncryption: params.dbEncryptionRequired,
+    cipher: params.dbCipher,
+    getAnthropicKey: () => params.keychainStore.getProviderKey("anthropic")
+  });
+  const integrationSync = new IntegrationSyncService({
+    signalService: services.signalService,
+    keychainStore: params.keychainStore,
+    logger: params.logger
+  });
+  const transcription = new OpenAIRealtimeTranscription({
+    getOpenAIKey: () => params.keychainStore.getProviderKey("openai"),
+    onTranscriptSegments: (interviewId, segments) => {
+      try {
+        services.interviewService.appendTranscript(interviewId, segments);
+      } catch (error) {
+        params.logger?.warn("Unable to append realtime transcript segment", { error });
+      }
+    },
+    logger: params.logger ?? console
+  });
   const port = params.port ?? 4010;
+  const autoSyncSeconds = Number(process.env.SCOPE_INTEGRATIONS_AUTO_SYNC_SECONDS ?? "0");
+  const autoSyncEnabled = Number.isFinite(autoSyncSeconds) && autoSyncSeconds > 0;
+  const autoSyncTimer = autoSyncEnabled
+    ? setInterval(() => {
+        integrationSync
+          .sync({})
+          .catch((error) => params.logger?.warn("Background integration sync failed", { error }));
+      }, autoSyncSeconds * 1000)
+    : null;
 
-  app.use(cors());
+  let activeRequests = 0;
+  const appVersion = process.env.npm_package_version ?? "0.1.0";
+  const diagnosticsLimiter = createRateLimiter({
+    windowMs: Number(process.env.SCOPE_SUPPORT_SEND_RATE_LIMIT_WINDOW_MS ?? "60000"),
+    maxRequests: Number(process.env.SCOPE_SUPPORT_SEND_RATE_LIMIT_MAX ?? "5")
+  });
+
+  const buildHealthPayload = () => ({
+    ok: true,
+    service: "scope-local-service",
+    startedAt: startupAt.toISOString(),
+    uptimeSec: Math.floor((Date.now() - startupAt.getTime()) / 1000),
+    activeRequests,
+    integrationSync: integrationSync.getHealthSnapshot()
+  });
+
+  app.use(cors({
+    origin: (origin, callback) => {
+      if (!origin || origin.startsWith("http://127.0.0.1") || origin.startsWith("http://localhost") || origin === "null") {
+        callback(null, true);
+      } else {
+        callback(new Error("CORS not allowed"));
+      }
+    }
+  }));
   app.use(express.json({ limit: "5mb" }));
+  app.use((req, res, next) => {
+    if (req.path === "/v1/health" || req.method === "OPTIONS") {
+      return next();
+    }
+    const auth = req.headers.authorization;
+    if (!auth || auth !== `Bearer ${serviceToken}`) {
+      return res.status(401).json({ error: "Unauthorized" });
+    }
+    next();
+  });
+  app.use((req, res, next) => {
+    const startedAt = Date.now();
+    activeRequests += 1;
+    res.on("finish", () => {
+      activeRequests -= 1;
+      params.logger?.info("http_request", {
+        method: req.method,
+        path: req.path,
+        statusCode: res.statusCode,
+        latencyMs: Date.now() - startedAt
+      });
+    });
+    next();
+  });
 
   app.get("/v1/health", (_req, res) => {
-    res.json({ ok: true, service: "scope-local-service" });
+    res.json(buildHealthPayload());
   });
 
-  app.post("/v1/interviews/start", (req, res) => {
-    try {
-      const consentAccepted = Boolean(req.body?.consentAccepted);
-      const session = services.interviewService.start(consentAccepted);
-      res.status(201).json(session);
-    } catch (error) {
-      res.status(400).json({ error: (error as Error).message });
-    }
-  });
-
-  app.post("/v1/interviews/:id/transcript", (req, res) => {
-    try {
-      const segments = (req.body?.segments ?? []) as TranscriptSegment[];
-      const result = services.interviewService.appendTranscript(req.params.id, segments);
-      res.status(200).json(result);
-    } catch (error) {
-      res.status(404).json({ error: (error as Error).message });
-    }
-  });
-
-  app.post("/v1/interviews/:id/stop", (req, res) => {
-    try {
-      const session = services.interviewService.stop(req.params.id);
-      res.status(200).json(session);
-    } catch (error) {
-      res.status(404).json({ error: (error as Error).message });
-    }
-  });
-
-  app.get("/v1/interviews/:id/transcript", (req, res) => {
-    try {
-      const transcript = services.interviewService.getTranscript(req.params.id);
-      res.status(200).json(transcript);
-    } catch (error) {
-      res.status(404).json({ error: (error as Error).message });
-    }
-  });
-
-  app.post("/v1/signals/ingest", (req, res) => {
-    try {
-      const result = services.signalService.ingest(req.body);
-      res.status(201).json(result);
-    } catch (error) {
-      res.status(400).json({ error: (error as Error).message });
-    }
-  });
-
-  app.get("/v1/signals/stream", (req, res) => {
-    const limit = Number(req.query.limit ?? 200);
-    const signals = services.signalService.stream(limit);
-    res.status(200).json({ items: signals });
-  });
-
-  app.post("/v1/features/ghost/scan", (_req, res) => {
-    try {
-      const result = services.signalService.scanGhostFeatures();
-      res.status(200).json(result);
-    } catch (error) {
-      res.status(500).json({ error: (error as Error).message });
-    }
-  });
-
-  app.post("/v1/dossiers/generate", (req, res) => {
-    try {
-      const dossier = services.dossierService.generate(req.body);
-      res.status(201).json(dossier);
-    } catch (error) {
-      res.status(400).json({ error: (error as Error).message });
-    }
-  });
-
-  app.get("/v1/dossiers/:id", (req, res) => {
-    const dossier = services.dossierService.get(req.params.id);
-    if (!dossier) {
-      res.status(404).json({ error: "Not found" });
-      return;
-    }
-
-    res.status(200).json(dossier);
-  });
-
-  app.post("/v1/export/dossier", (req, res) => {
-    try {
-      const exported = services.exportService.exportDossier(req.body);
-      res.status(200).json(exported);
-    } catch (error) {
-      res.status(400).json({ error: (error as Error).message });
-    }
-  });
-
-  app.post("/v1/export/linear", async (req, res) => {
-    try {
-      const exported = services.exportService.exportDossier(req.body);
-      const linearToken = await params.keychainStore.getIntegrationToken("linear");
-      const apiKey = req.body.apiKey ?? linearToken?.accessToken;
-
-      if (!apiKey || !req.body.issueId) {
-        res.status(400).json({ error: "Missing Linear credentials or issue ID." });
-        return;
-      }
-
-      const rawDossier = services.dossierService.get(req.body.dossierId);
-      if (!rawDossier) {
-        res.status(404).json({ error: "Dossier not found." });
-        return;
-      }
-
-      await pushDossierToLinear({
-        apiKey,
-        issueId: req.body.issueId,
-        markdown: exported.format === "markdown" ? exported.content : dossierToMarkdown(rawDossier)
-      });
-
-      res.status(200).json({ ok: true, content: exported.content });
-    } catch (error) {
-      res.status(500).json({ error: (error as Error).message });
-    }
-  });
-
-  app.post("/v1/export/jira", async (req, res) => {
-    try {
-      const exported = services.exportService.exportDossier(req.body);
-      const token = await params.keychainStore.getIntegrationToken("jira");
-      const authHeader = req.body.authHeader ?? (token ? `Bearer ${token.accessToken}` : null);
-      const baseUrl = req.body.baseUrl as string;
-      const issueKey = req.body.issueKey as string;
-
-      if (!authHeader || !baseUrl || !issueKey) {
-        res.status(400).json({ error: "Missing Jira credentials or destination metadata." });
-        return;
-      }
-
-      await pushDossierToJira({
-        baseUrl,
-        authHeader,
-        issueKey,
-        markdown: exported.content
-      });
-
-      res.status(200).json({ ok: true, content: exported.content });
-    } catch (error) {
-      res.status(500).json({ error: (error as Error).message });
-    }
-  });
-
-  app.post("/v1/auth/integration/token", async (req, res) => {
-    try {
-      const provider = req.body.provider as IntegrationProvider;
-      await params.keychainStore.saveIntegrationToken({
-        provider,
-        accessToken: req.body.accessToken,
-        refreshToken: req.body.refreshToken,
-        expiresAt: req.body.expiresAt,
-        scope: req.body.scope
-      });
-      res.status(200).json({ ok: true });
-    } catch (error) {
-      res.status(400).json({ error: (error as Error).message });
-    }
+  registerInterviewRoutes(app, { services, transcription, logger: params.logger });
+  registerSignalRoutes(app, { services });
+  registerDossierRoutes(app, { services, keychainStore: params.keychainStore });
+  registerIntegrationRoutes(app, { keychainStore: params.keychainStore, integrationSync, logger: params.logger });
+  registerDiagnosticsRoutes(app, {
+    appVersion,
+    dbPath: params.dbPath,
+    diagnosticsLogPath: params.diagnosticsLogPath,
+    diagnosticsLimiter,
+    buildHealthPayload,
+    logger: params.logger
   });
 
   const server = await new Promise<ReturnType<typeof app.listen>>((resolve) => {
@@ -193,15 +139,23 @@ export const startLocalService = async (params: {
 
   return {
     port,
-    close: () =>
-      new Promise<void>((resolve, reject) => {
+    serviceToken,
+    close: async () => {
+      if (autoSyncTimer) {
+        clearInterval(autoSyncTimer);
+      }
+      await transcription.shutdown();
+      params.logger?.info("Local service shutdown complete");
+      return new Promise<void>((resolve, reject) => {
         server.close((error) => {
           if (error) {
+            params.logger?.error("Local service shutdown failed", { error });
             reject(error);
             return;
           }
           resolve();
         });
-      })
+      });
+    }
   };
 };

@@ -1,5 +1,6 @@
 import type { FeatureDossier } from "@scope/types";
 import type { ScopeDb } from "./client";
+import { parseJson } from "./parseJson";
 
 export class DossierRepo {
   constructor(private readonly db: ScopeDb) {}
@@ -13,7 +14,7 @@ export class DossierRepo {
       .run(
         dossier.id,
         dossier.featureId,
-        JSON.stringify(dossier.sections9),
+        JSON.stringify(dossier.sections),
         JSON.stringify(dossier.citations),
         JSON.stringify(dossier.criticNotes),
         dossier.version,
@@ -43,9 +44,9 @@ export class DossierRepo {
     return {
       id: row.id,
       featureId: row.feature_id,
-      sections9: JSON.parse(row.sections_json),
-      citations: JSON.parse(row.citations_json),
-      criticNotes: JSON.parse(row.critic_notes_json),
+      sections: parseJson(row.sections_json, [] as FeatureDossier["sections"]),
+      citations: parseJson(row.citations_json, [] as FeatureDossier["citations"]),
+      criticNotes: parseJson(row.critic_notes_json, [] as string[]),
       version: row.version,
       createdAt: row.created_at
     };

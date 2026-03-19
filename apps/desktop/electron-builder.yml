@@ -1,11 +1,20 @@
 appId: com.scope.desktop
 productName: Scope
+directories:
+  output: release
 files:
   - dist/**
   - package.json
+afterSign: scripts/notarize.mjs
 mac:
+  category: public.app-category.productivity
+  hardenedRuntime: true
+  gatekeeperAssess: false
+  entitlements: build/entitlements.mac.plist
+  entitlementsInherit: build/entitlements.mac.plist
   target:
+    - zip
     - dmg
   artifactName: "Scope-${version}.${ext}"
 dmg:
-  sign: false
+  sign: true

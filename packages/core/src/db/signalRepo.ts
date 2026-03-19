@@ -1,11 +1,25 @@
 import type { EvidenceRef, Signal } from "@scope/types";
 import type { ScopeDb } from "./client";
+import { parseJson } from "./parseJson";
 
-const parseJson = <T>(value: string | null, fallback: T): T => {
-  if (!value) {
-    return fallback;
-  }
-  return JSON.parse(value) as T;
+type SignalRow = {
+  id: string;
+  source: Signal["source"];
+  source_ref: string;
+  type: Signal["type"];
+  confidence: number;
+  summary: string;
+  created_at: string;
+  metadata_json: string | null;
+};
+
+type EvidenceRow = {
+  id: string;
+  signal_id: string;
+  kind: EvidenceRef["kind"];
+  uri: string;
+  quote: string;
+  timestamp_ms: number | null;
 };
 
 export class SignalRepo {
@@ -31,6 +45,7 @@ export class SignalRepo {
           fingerprint
         });
 
+      this.db.sqlite.prepare(`DELETE FROM signals_fts WHERE id = ?`).run(signal.id);
       this.db.sqlite.prepare(`INSERT INTO signals_fts(id, summary) VALUES (?, ?)`).run(signal.id, signal.summary);
 
       const insertEvidence = this.db.sqlite.prepare(
@@ -64,18 +79,9 @@ export class SignalRepo {
   }
 
   findByFingerprint(fingerprint: string): Signal | undefined {
-    const row = this.db.sqlite.prepare(`SELECT * FROM signals WHERE fingerprint = ?`).get(fingerprint) as
-      | {
-          id: string;
-          source: Signal["source"];
-          source_ref: string;
-          type: Signal["type"];
-          confidence: number;
-          summary: string;
-          created_at: string;
-          metadata_json: string | null;
-        }
-      | undefined;
+    const row = this.db.sqlite
+      .prepare(`SELECT * FROM signals WHERE fingerprint = ?`)
+      .get(fingerprint) as SignalRow | undefined;
 
     if (!row) {
       return undefined;
@@ -87,18 +93,12 @@ export class SignalRepo {
   list(limit = 200): Signal[] {
     const rows = this.db.sqlite
       .prepare(`SELECT * FROM signals ORDER BY created_at DESC LIMIT ?`)
-      .all(limit) as Array<{
-      id: string;
-      source: Signal["source"];
-      source_ref: string;
-      type: Signal["type"];
-      confidence: number;
-      summary: string;
-      created_at: string;
-      metadata_json: string | null;
-    }>;
+      .all(limit) as SignalRow[];
 
-    return rows.map((row) => this.hydrateSignal(row));
+    if (rows.length === 0) return [];
+
+    const evidenceMap = this.batchLoadEvidence(rows.map((r) => r.id));
+    return rows.map((row) => this.hydrateSignal(row, evidenceMap.get(row.id) ?? []));
   }
 
   listByIds(ids: string[]): Signal[] {
@@ -109,40 +109,35 @@ export class SignalRepo {
     const placeholders = ids.map(() => "?").join(", ");
     const rows = this.db.sqlite
       .prepare(`SELECT * FROM signals WHERE id IN (${placeholders})`)
-      .all(...ids) as Array<{
-      id: string;
-      source: Signal["source"];
-      source_ref: string;
-      type: Signal["type"];
-      confidence: number;
-      summary: string;
-      created_at: string;
-      metadata_json: string | null;
-    }>;
+      .all(...ids) as SignalRow[];
 
-    return rows.map((row) => this.hydrateSignal(row));
+    if (rows.length === 0) return [];
+
+    const evidenceMap = this.batchLoadEvidence(rows.map((r) => r.id));
+    return rows.map((row) => this.hydrateSignal(row, evidenceMap.get(row.id) ?? []));
   }
 
-  private hydrateSignal(row: {
-    id: string;
-    source: Signal["source"];
-    source_ref: string;
-    type: Signal["type"];
-    confidence: number;
-    summary: string;
-    created_at: string;
-    metadata_json: string | null;
-  }): Signal {
-    const evidence = this.db.sqlite
-      .prepare(`SELECT * FROM evidence_refs WHERE signal_id = ?`)
-      .all(row.id) as Array<{
-      id: string;
-      signal_id: string;
-      kind: EvidenceRef["kind"];
-      uri: string;
-      quote: string;
-      timestamp_ms: number | null;
-    }>;
+  private batchLoadEvidence(ids: string[]): Map<string, EvidenceRow[]> {
+    const placeholders = ids.map(() => "?").join(", ");
+    const allEvidence = this.db.sqlite
+      .prepare(`SELECT * FROM evidence_refs WHERE signal_id IN (${placeholders})`)
+      .all(...ids) as EvidenceRow[];
+
+    const map = new Map<string, EvidenceRow[]>();
+    for (const ev of allEvidence) {
+      const list = map.get(ev.signal_id) ?? [];
+      list.push(ev);
+      map.set(ev.signal_id, list);
+    }
+    return map;
+  }
+
+  private hydrateSignal(row: SignalRow, evidenceRows?: EvidenceRow[]): Signal {
+    const evidence =
+      evidenceRows ??
+      (this.db.sqlite
+        .prepare(`SELECT * FROM evidence_refs WHERE signal_id = ?`)
+        .all(row.id) as EvidenceRow[]);
 
     return {
       id: row.id,

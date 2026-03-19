@@ -13,7 +13,7 @@ const requiredSections: DossierSection["title"][] = [
 ];
 
 export const validateDossier = (dossier: FeatureDossier, sourceSignals: Signal[]) => {
-  const sectionTitles = new Set(dossier.sections9.map((section) => section.title));
+  const sectionTitles = new Set(dossier.sections.map((section) => section.title));
   const missing = requiredSections.filter((title) => !sectionTitles.has(title));
   if (missing.length > 0) {
     throw new Error(`Missing dossier sections: ${missing.join(", ")}`);

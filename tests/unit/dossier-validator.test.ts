@@ -25,7 +25,7 @@ const dossier: FeatureDossier = {
   featureId: "feat-1",
   version: 1,
   createdAt: new Date().toISOString(),
-  sections9: [
+  sections: [
     "Problem",
     "Research Summary",
     "Solution",

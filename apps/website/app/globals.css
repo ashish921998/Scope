@@ -1,0 +1,412 @@
+:root {
+  color-scheme: light;
+  --paper: #f6f1e8;
+  --paper-strong: #efe4d0;
+  --ink: #1b1a17;
+  --muted: #655f57;
+  --line: rgba(57, 49, 35, 0.16);
+  --accent: #a9482f;
+  --accent-strong: #7c311d;
+  --deep: #221b16;
+  --card: rgba(255, 251, 244, 0.76);
+  --shadow: 0 30px 80px rgba(49, 34, 17, 0.12);
+  --max: 1200px;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  margin: 0;
+  color: var(--ink);
+  background:
+    radial-gradient(circle at top left, rgba(226, 149, 93, 0.28), transparent 26%),
+    radial-gradient(circle at 85% 12%, rgba(143, 182, 196, 0.2), transparent 24%),
+    linear-gradient(180deg, #fcf8f2 0%, #f4ecde 52%, #efe6d9 100%);
+  font-family: "Baskerville", "Iowan Old Style", "Palatino Linotype", serif;
+}
+
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  background-image:
+    linear-gradient(rgba(73, 54, 28, 0.04) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(73, 54, 28, 0.04) 1px, transparent 1px);
+  background-size: 22px 22px;
+  mask-image: linear-gradient(180deg, rgba(0, 0, 0, 0.5), transparent 90%);
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+main {
+  width: min(calc(100% - 32px), var(--max));
+  margin: 0 auto;
+  padding: 24px 0 80px;
+}
+
+.site-shell {
+  position: relative;
+}
+
+.nav {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 12px 0 22px;
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-family: "Avenir Next Condensed", "Arial Narrow", sans-serif;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.brand-mark {
+  width: 40px;
+  height: 40px;
+  display: grid;
+  place-items: center;
+  border-radius: 14px;
+  background: linear-gradient(145deg, var(--accent), #d08a5f);
+  color: #fff8f1;
+  box-shadow: 0 14px 24px rgba(128, 53, 31, 0.24);
+  font-size: 18px;
+}
+
+.nav-links {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.nav-link,
+.button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 48px;
+  padding: 0 18px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  transition: transform 160ms ease, border-color 160ms ease, background 160ms ease;
+}
+
+.nav-link:hover,
+.button:hover {
+  transform: translateY(-1px);
+  border-color: rgba(57, 49, 35, 0.3);
+}
+
+.button {
+  background: var(--accent);
+  color: #fff6ee;
+  border-color: transparent;
+  box-shadow: 0 14px 22px rgba(128, 53, 31, 0.18);
+  font-family: "Avenir Next Condensed", "Arial Narrow", sans-serif;
+  font-size: 15px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.button.secondary {
+  background: rgba(255, 251, 244, 0.55);
+  color: var(--ink);
+  border-color: var(--line);
+  box-shadow: none;
+}
+
+.hero {
+  display: grid;
+  grid-template-columns: 1.1fr 0.9fr;
+  gap: 28px;
+  align-items: start;
+  padding: 18px 0 28px;
+}
+
+.eyebrow {
+  display: inline-flex;
+  width: fit-content;
+  padding: 8px 12px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: rgba(255, 251, 244, 0.55);
+  font-family: "Avenir Next Condensed", "Arial Narrow", sans-serif;
+  font-size: 12px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.hero-copy h1 {
+  margin: 16px 0 16px;
+  font-family: "Didot", "Bodoni 72", "Times New Roman", serif;
+  font-size: clamp(3.4rem, 9vw, 6.8rem);
+  line-height: 0.92;
+  letter-spacing: -0.05em;
+  font-weight: 700;
+}
+
+.hero-copy p {
+  max-width: 58ch;
+  font-size: 1.1rem;
+  line-height: 1.7;
+  color: var(--muted);
+}
+
+.hero-actions {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-top: 24px;
+}
+
+.hero-note {
+  margin-top: 18px;
+  font-size: 0.94rem;
+  color: var(--muted);
+}
+
+.hero-panel,
+.section-card,
+.pricing-card,
+.download-card,
+.legal-card {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 28px;
+  box-shadow: var(--shadow);
+  backdrop-filter: blur(14px);
+}
+
+.hero-panel {
+  overflow: hidden;
+}
+
+.panel-top {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1px;
+  background: var(--line);
+}
+
+.panel-cell {
+  min-height: 184px;
+  padding: 20px;
+  background: rgba(255, 251, 244, 0.92);
+}
+
+.panel-cell strong,
+.section-card h2,
+.pricing-card h3,
+.download-card h3,
+.legal-card h2 {
+  display: block;
+  font-family: "Avenir Next Condensed", "Arial Narrow", sans-serif;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.panel-value {
+  display: block;
+  margin-top: 18px;
+  font-family: "Didot", "Bodoni 72", serif;
+  font-size: 2.4rem;
+  line-height: 1;
+}
+
+.panel-stack {
+  display: grid;
+  gap: 10px;
+  padding: 18px 20px 22px;
+  background: linear-gradient(180deg, rgba(34, 27, 22, 0.98), rgba(46, 34, 24, 0.98));
+  color: #fff7ef;
+}
+
+.stack-item {
+  display: flex;
+  justify-content: space-between;
+  gap: 18px;
+  border-bottom: 1px solid rgba(255, 247, 239, 0.1);
+  padding-bottom: 10px;
+}
+
+.stack-item:last-child {
+  border-bottom: 0;
+  padding-bottom: 0;
+}
+
+.section-header {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 16px;
+  margin: 56px 0 16px;
+}
+
+.section-header h2 {
+  margin: 0;
+  font-size: clamp(2rem, 5vw, 3rem);
+}
+
+.section-header p {
+  max-width: 54ch;
+  color: var(--muted);
+  line-height: 1.7;
+}
+
+.signal-grid,
+.pricing-grid,
+.download-grid,
+.legal-grid {
+  display: grid;
+  gap: 16px;
+}
+
+.signal-grid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.section-card,
+.pricing-card,
+.download-card,
+.legal-card {
+  padding: 22px;
+}
+
+.section-card p,
+.pricing-card p,
+.download-card p,
+.legal-card p,
+.bullet-list li {
+  color: var(--muted);
+  line-height: 1.7;
+}
+
+.bullet-list {
+  margin: 16px 0 0;
+  padding-left: 18px;
+}
+
+.bullet-list li + li {
+  margin-top: 8px;
+}
+
+.pricing-grid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.pricing-card.featured {
+  position: relative;
+  background: linear-gradient(180deg, rgba(255, 248, 240, 0.96), rgba(244, 230, 215, 0.96));
+  transform: translateY(-6px);
+}
+
+.pricing-card.featured::before {
+  content: "Recommended";
+  position: absolute;
+  top: 18px;
+  right: 18px;
+  padding: 6px 10px;
+  border-radius: 999px;
+  background: var(--deep);
+  color: #fff7ef;
+  font-family: "Avenir Next Condensed", "Arial Narrow", sans-serif;
+  font-size: 12px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.price {
+  margin: 18px 0 8px;
+  font-family: "Didot", "Bodoni 72", serif;
+  font-size: 3rem;
+  line-height: 1;
+}
+
+.price span {
+  font-size: 1rem;
+  color: var(--muted);
+}
+
+.download-grid {
+  grid-template-columns: 0.9fr 1.1fr;
+}
+
+.download-card code {
+  display: inline-flex;
+  margin-top: 12px;
+  padding: 8px 10px;
+  border-radius: 12px;
+  border: 1px solid var(--line);
+  background: rgba(255, 251, 244, 0.9);
+}
+
+.legal-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.footer {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  margin-top: 52px;
+  padding-top: 22px;
+  border-top: 1px solid var(--line);
+  color: var(--muted);
+}
+
+@media (max-width: 980px) {
+  .hero,
+  .signal-grid,
+  .pricing-grid,
+  .download-grid,
+  .legal-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .panel-top {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 720px) {
+  main {
+    width: min(calc(100% - 20px), var(--max));
+    padding-top: max(16px, env(safe-area-inset-top));
+    padding-bottom: max(72px, env(safe-area-inset-bottom));
+  }
+
+  .nav,
+  .section-header,
+  .footer {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .hero-copy h1 {
+    font-size: clamp(3rem, 18vw, 4.8rem);
+  }
+
+  .section-card,
+  .pricing-card,
+  .download-card,
+  .legal-card,
+  .panel-cell {
+    padding: 18px;
+  }
+}

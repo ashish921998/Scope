@@ -58,7 +58,7 @@ export interface InterviewSession {
   status: "active" | "completed";
   transcriptSegments: TranscriptSegment[];
   followups: string[];
-  debrief7?: InterviewDebrief;
+  debrief?: InterviewDebrief;
   consentAccepted: boolean;
   startedAt: string;
   endedAt?: string;
@@ -96,7 +96,7 @@ export interface DossierCitation {
 export interface FeatureDossier {
   id: string;
   featureId: string;
-  sections9: DossierSection[];
+  sections: DossierSection[];
   citations: DossierCitation[];
   criticNotes: string[];
   version: number;

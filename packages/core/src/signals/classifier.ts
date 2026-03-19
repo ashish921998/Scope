@@ -37,7 +37,7 @@ export interface Classification {
 export const classifySignal = (rawText: string): Classification => {
   const text = normalizeText(rawText);
 
-  let best: Classification = { type: "pain_point", confidence: 0.55 };
+  let best: Classification = { type: "pain_point", confidence: 0.30 };
 
   for (const rule of rules) {
     const matches = rule.keywords.filter((keyword) => text.includes(normalizeText(keyword))).length;

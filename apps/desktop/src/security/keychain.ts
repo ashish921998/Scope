@@ -1,7 +1,9 @@
 import keytar from "keytar";
+import { randomBytes } from "node:crypto";
 import type { IntegrationProvider } from "@scope/types";
 
-const SERVICE = "scope-arena-equivalent";
+const SERVICE = "com.scope.desktop";
+const DB_KEY_ACCOUNT = "db:local-encryption-key";
 
 export interface IntegrationTokenSecret {
   provider: IntegrationProvider;
@@ -9,6 +11,7 @@ export interface IntegrationTokenSecret {
   refreshToken?: string;
   expiresAt?: string;
   scope?: string;
+  metadata?: Record<string, unknown>;
 }
 
 export class KeychainStore {
@@ -29,6 +32,37 @@ export class KeychainStore {
     if (!raw) {
       return null;
     }
-    return JSON.parse(raw) as IntegrationTokenSecret;
+    try {
+      return JSON.parse(raw) as IntegrationTokenSecret;
+    } catch {
+      return null;
+    }
+  }
+
+  async saveDatabaseKey(key: string) {
+    await keytar.setPassword(SERVICE, DB_KEY_ACCOUNT, key);
+  }
+
+  async getDatabaseKey() {
+    return keytar.getPassword(SERVICE, DB_KEY_ACCOUNT);
+  }
+
+  async getOrCreateDatabaseKey() {
+    const existing = await this.getDatabaseKey();
+    if (existing) {
+      return existing;
+    }
+
+    const generated = randomBytes(32).toString("hex");
+    await this.saveDatabaseKey(generated);
+    return generated;
+  }
+
+  async deleteProviderKey(provider: "openai" | "anthropic") {
+    await keytar.deletePassword(SERVICE, `provider:${provider}`);
+  }
+
+  async deleteIntegrationToken(provider: IntegrationProvider) {
+    await keytar.deletePassword(SERVICE, `integration:${provider}`);
   }
 }

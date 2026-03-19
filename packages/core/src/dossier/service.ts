@@ -8,15 +8,17 @@ export class DossierService {
   constructor(
     private readonly signalRepo: SignalRepo,
     private readonly dossierRepo: DossierRepo,
-    private readonly featureRepo: FeatureRepo
+    private readonly featureRepo: FeatureRepo,
+    private readonly getAnthropicKey?: () => Promise<string | null>
   ) {}
 
-  generate(input: DossierGenerateInput) {
+  async generate(input: DossierGenerateInput) {
     const signals = input.signalIds?.length
       ? this.signalRepo.listByIds(input.signalIds)
       : this.resolveFeatureSignals(input.featureId);
 
-    const dossier = generateFeatureDossier(input.featureId, signals);
+    const anthropicKey = this.getAnthropicKey ? await this.getAnthropicKey() : null;
+    const dossier = await generateFeatureDossier(input.featureId, signals, anthropicKey);
     return this.dossierRepo.save(dossier);
   }
 
@@ -25,7 +27,7 @@ export class DossierService {
   }
 
   private resolveFeatureSignals(featureId: string) {
-    const feature = this.featureRepo.list().find((item: { id: string }) => item.id === featureId);
+    const feature = this.featureRepo.get(featureId);
     if (!feature) {
       throw new Error(`Feature candidate ${featureId} not found.`);
     }

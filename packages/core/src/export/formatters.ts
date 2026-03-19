@@ -2,7 +2,7 @@ import type { FeatureDossier } from "@scope/types";
 import { redactSensitiveText } from "../security/redaction";
 
 export const dossierToMarkdown = (dossier: FeatureDossier) => {
-  const sectionMarkdown = dossier.sections9
+  const sectionMarkdown = dossier.sections
     .map((section) => `## ${section.title}\n\n${redactSensitiveText(section.content)}`)
     .join("\n\n");
 
@@ -20,7 +20,7 @@ export const dossierToJson = (dossier: FeatureDossier) =>
   JSON.stringify(
     {
       ...dossier,
-      sections9: dossier.sections9.map((section) => ({
+      sections: dossier.sections.map((section) => ({
         ...section,
         content: redactSensitiveText(section.content)
       })),

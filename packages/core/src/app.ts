@@ -5,10 +5,16 @@ import { EmbeddingRepo } from "./db/embeddingRepo";
 import { FeatureRepo } from "./db/featureRepo";
 import { InterviewRepo } from "./db/interviewRepo";
 import { SignalRepo } from "./db/signalRepo";
-import { TokenRepo } from "./db/tokenRepo";
 import { ExportService } from "./export/service";
 import { InterviewService } from "./interviews/service";
 import { SignalService } from "./signals/service";
+
+export interface CoreServicesOptions {
+  encryptionKey?: string;
+  requireEncryption?: boolean;
+  cipher?: string;
+  getAnthropicKey?: () => Promise<string | null>;
+}
 
 export interface CoreServices {
   interviewService: InterviewService;
@@ -16,26 +22,28 @@ export interface CoreServices {
   dossierService: DossierService;
   exportService: ExportService;
   repos: {
-    tokenRepo: TokenRepo;
     featureRepo: FeatureRepo;
     signalRepo: SignalRepo;
     dossierRepo: DossierRepo;
   };
 }
 
-export const createCoreServices = (dbPath: string): CoreServices => {
-  const db = initDb(dbPath);
+export const createCoreServices = (dbPath: string, options: CoreServicesOptions = {}): CoreServices => {
+  const db = initDb(dbPath, {
+    encryptionKey: options.encryptionKey,
+    requireEncryption: options.requireEncryption,
+    cipher: options.cipher
+  });
 
   const interviewRepo = new InterviewRepo(db);
   const signalRepo = new SignalRepo(db);
   const featureRepo = new FeatureRepo(db);
   const dossierRepo = new DossierRepo(db);
-  const tokenRepo = new TokenRepo(db);
   const embeddingRepo = new EmbeddingRepo(db);
 
   const interviewService = new InterviewService(interviewRepo);
   const signalService = new SignalService(signalRepo, featureRepo, embeddingRepo);
-  const dossierService = new DossierService(signalRepo, dossierRepo, featureRepo);
+  const dossierService = new DossierService(signalRepo, dossierRepo, featureRepo, options.getAnthropicKey);
   const exportService = new ExportService(dossierRepo);
 
   return {
@@ -44,7 +52,6 @@ export const createCoreServices = (dbPath: string): CoreServices => {
     dossierService,
     exportService,
     repos: {
-      tokenRepo,
       featureRepo,
       signalRepo,
       dossierRepo

@@ -10,5 +10,6 @@ contextBridge.exposeInMainWorld("scope", {
     ipcRenderer.invoke("keys/saveProviderKey", provider, keyRef),
   generateDossier: (featureId: string) => ipcRenderer.invoke("dossier/generate", featureId),
   exportDossier: (featureId: string, format: "markdown" | "json") =>
-    ipcRenderer.invoke("export/dossier", featureId, format)
+    ipcRenderer.invoke("export/dossier", featureId, format),
+  getServiceToken: () => ipcRenderer.invoke("service/getToken")
 });

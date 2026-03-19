@@ -1,224 +1,190 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { computeTourLayout, type TourRect, type TourViewport } from "./tourLayout";
+import { InterviewCard } from "../components/InterviewCard";
+import { SupportCard } from "../components/SupportCard";
+import { IntegrationsCard } from "../components/IntegrationsCard";
+import { SignalStreamCard } from "../components/SignalStreamCard";
+import { DossierCard } from "../components/DossierCard";
+import { GuidedTour, TOUR_STEPS } from "../components/GuidedTour";
+import type { TourTargetId } from "../components/GuidedTour";
 
-const API = "http://127.0.0.1:4010";
-
-const fetchJson = async (path: string, init?: RequestInit) => {
-  const response = await fetch(`${API}${path}`, {
-    ...init,
-    headers: {
-      "Content-Type": "application/json",
-      ...(init?.headers ?? {})
-    }
-  });
-  const data = await response.json().catch(() => ({}));
-  if (!response.ok) {
-    throw new Error(data.error ?? JSON.stringify(data));
+const getViewportState = (): TourViewport => {
+  if (typeof window === "undefined") {
+    return {
+      width: 0,
+      height: 0,
+      offsetTop: 0,
+      offsetLeft: 0,
+      keyboardInset: 0
+    };
   }
-  return data;
+
+  const visualViewport = window.visualViewport;
+  const width = visualViewport?.width ?? window.innerWidth;
+  const height = visualViewport?.height ?? window.innerHeight;
+  const offsetTop = visualViewport?.offsetTop ?? 0;
+  const offsetLeft = visualViewport?.offsetLeft ?? 0;
+  const keyboardInset = Math.max(0, window.innerHeight - height - offsetTop);
+
+  return {
+    width,
+    height,
+    offsetTop,
+    offsetLeft,
+    keyboardInset
+  };
+};
+
+const toTourRect = (element: HTMLElement): TourRect => {
+  const rect = element.getBoundingClientRect();
+  return {
+    top: rect.top,
+    left: rect.left,
+    width: rect.width,
+    height: rect.height
+  };
 };
 
 export default function Home() {
-  const [consent, setConsent] = useState(true);
-  const [interviewId, setInterviewId] = useState("");
-  const [transcriptText, setTranscriptText] = useState("Customer says onboarding feels manual and slow.");
-  const [signalSource, setSignalSource] = useState("slack");
-  const [signalRef, setSignalRef] = useState("msg-1");
-  const [signalText, setSignalText] = useState("Users request CSV import and report frequent onboarding confusion.");
+  const [activeTourIndex, setActiveTourIndex] = useState<number | null>(0);
+  const [tourLayout, setTourLayout] = useState<ReturnType<typeof computeTourLayout> | null>(null);
+  const [viewportState, setViewportState] = useState<TourViewport>(getViewportState);
   const [featureId, setFeatureId] = useState("");
-  const [dossierId, setDossierId] = useState("");
   const [output, setOutput] = useState("Ready.");
+  const tourRefs = useRef<Record<TourTargetId, HTMLElement | null>>({
+    interviewStart: null,
+    supportEmail: null,
+    supportNotes: null,
+    supportSend: null
+  });
 
-  const transcriptSegments = useMemo(
-    () => [
-      {
-        id: crypto.randomUUID(),
-        speaker: "customer",
-        text: transcriptText,
-        timestampMs: Date.now()
+  useEffect(() => {
+    const updateViewport = () => setViewportState(getViewportState());
+    const handleFocusShift = () => {
+      window.setTimeout(updateViewport, 40);
+      window.setTimeout(updateViewport, 240);
+    };
+
+    updateViewport();
+    window.addEventListener("resize", updateViewport);
+    window.addEventListener("scroll", updateViewport, { passive: true });
+    window.addEventListener("focusin", handleFocusShift);
+    window.visualViewport?.addEventListener("resize", updateViewport);
+    window.visualViewport?.addEventListener("scroll", updateViewport);
+
+    return () => {
+      window.removeEventListener("resize", updateViewport);
+      window.removeEventListener("scroll", updateViewport);
+      window.removeEventListener("focusin", handleFocusShift);
+      window.visualViewport?.removeEventListener("resize", updateViewport);
+      window.visualViewport?.removeEventListener("scroll", updateViewport);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (activeTourIndex === null) {
+      setTourLayout(null);
+      return;
+    }
+
+    const step = TOUR_STEPS[activeTourIndex];
+    const target = tourRefs.current[step.id];
+    if (!target) {
+      return;
+    }
+
+    target.scrollIntoView({
+      block: "center",
+      inline: "nearest",
+      behavior: "smooth"
+    });
+
+    const refreshLayout = () => {
+      const currentTarget = tourRefs.current[step.id];
+      if (!currentTarget) {
+        return;
       }
-    ],
-    [transcriptText]
-  );
+      setTourLayout(
+        computeTourLayout({
+          target: toTourRect(currentTarget),
+          viewport: viewportState
+        })
+      );
+    };
+
+    refreshLayout();
+
+    const resizeObserver = new ResizeObserver(refreshLayout);
+    resizeObserver.observe(target);
+    const timeoutId = window.setTimeout(refreshLayout, 320);
+
+    return () => {
+      resizeObserver.disconnect();
+      window.clearTimeout(timeoutId);
+    };
+  }, [activeTourIndex, viewportState]);
+
+  const registerTourTarget = (id: TourTargetId) => (node: HTMLElement | null) => {
+    tourRefs.current[id] = node;
+  };
+
+  const nextTourStep = () => {
+    setActiveTourIndex((current) => {
+      if (current === null) {
+        return 0;
+      }
+      return current >= TOUR_STEPS.length - 1 ? null : current + 1;
+    });
+  };
+
+  const previousTourStep = () => {
+    setActiveTourIndex((current) => {
+      if (current === null) {
+        return 0;
+      }
+      return current <= 0 ? 0 : current - 1;
+    });
+  };
 
   return (
     <main>
-      <h1>Scope Desktop</h1>
-      <small>Arena-equivalent local-first workflow for interviews, signals, and dossiers.</small>
+      <div className="hero">
+        <div>
+          <span className="eyebrow">Operator Console</span>
+          <h1>Scope Desktop</h1>
+          <small>Arena-equivalent local-first workflow for interviews, signals, dossiers, and support diagnostics.</small>
+        </div>
+        <div className="hero-actions">
+          <button className="secondary hero-button" onClick={() => setActiveTourIndex(0)}>
+            Launch Guided Tour
+          </button>
+          <small>Tour stays visible above the mobile keyboard using `visualViewport` re-layout.</small>
+        </div>
+      </div>
 
       <div className="grid">
-        <section className="card">
-          <h2>Interview Copilot</h2>
-          <label>
-            Consent Accepted
-            <select value={consent ? "yes" : "no"} onChange={(e) => setConsent(e.target.value === "yes")}>
-              <option value="yes">Yes</option>
-              <option value="no">No</option>
-            </select>
-          </label>
-          <button
-            onClick={async () => {
-              const session = await fetchJson("/v1/interviews/start", {
-                method: "POST",
-                body: JSON.stringify({ consentAccepted: consent })
-              });
-              setInterviewId(session.id);
-              setOutput(JSON.stringify(session, null, 2));
-            }}
-          >
-            Start Interview
-          </button>
-          <label>
-            Transcript Segment
-            <textarea value={transcriptText} onChange={(e) => setTranscriptText(e.target.value)} />
-          </label>
-          <button
-            className="secondary"
-            onClick={async () => {
-              if (!interviewId) {
-                throw new Error("Start interview first.");
-              }
-
-              const result = await fetchJson(`/v1/interviews/${interviewId}/transcript`, {
-                method: "POST",
-                body: JSON.stringify({ segments: transcriptSegments })
-              });
-              setOutput(JSON.stringify(result, null, 2));
-            }}
-          >
-            Append Transcript
-          </button>
-          <button
-            className="secondary"
-            onClick={async () => {
-              if (!interviewId) {
-                throw new Error("Start interview first.");
-              }
-              const result = await fetchJson(`/v1/interviews/${interviewId}/stop`, {
-                method: "POST",
-                body: JSON.stringify({})
-              });
-              setOutput(JSON.stringify(result, null, 2));
-            }}
-          >
-            Stop + Debrief
-          </button>
-        </section>
-
-        <section className="card">
-          <h2>Signal Stream</h2>
-          <label>
-            Source
-            <select value={signalSource} onChange={(e) => setSignalSource(e.target.value)}>
-              <option value="slack">Slack</option>
-              <option value="linear">Linear</option>
-              <option value="posthog">PostHog</option>
-              <option value="interview">Interview</option>
-            </select>
-          </label>
-          <label>
-            Source Ref
-            <input value={signalRef} onChange={(e) => setSignalRef(e.target.value)} />
-          </label>
-          <label>
-            Signal Text
-            <textarea value={signalText} onChange={(e) => setSignalText(e.target.value)} />
-          </label>
-          <button
-            onClick={async () => {
-              const result = await fetchJson("/v1/signals/ingest", {
-                method: "POST",
-                body: JSON.stringify({
-                  source: signalSource,
-                  sourceRef: signalRef,
-                  text: signalText
-                })
-              });
-              setOutput(JSON.stringify(result, null, 2));
-            }}
-          >
-            Ingest Signal
-          </button>
-          <button
-            className="secondary"
-            onClick={async () => {
-              const result = await fetchJson("/v1/signals/stream");
-              setOutput(JSON.stringify(result, null, 2));
-            }}
-          >
-            Refresh Stream
-          </button>
-          <button
-            className="secondary"
-            onClick={async () => {
-              const result = await fetchJson("/v1/features/ghost/scan", {
-                method: "POST",
-                body: JSON.stringify({})
-              });
-              if (result.candidates?.[0]?.id) {
-                setFeatureId(result.candidates[0].id);
-              }
-              setOutput(JSON.stringify(result, null, 2));
-            }}
-          >
-            Scan Ghost Features
-          </button>
-        </section>
-
-        <section className="card">
-          <h2>Feature Dossier</h2>
-          <label>
-            Feature ID
-            <input value={featureId} onChange={(e) => setFeatureId(e.target.value)} />
-          </label>
-          <button
-            onClick={async () => {
-              const dossier = await fetchJson("/v1/dossiers/generate", {
-                method: "POST",
-                body: JSON.stringify({ featureId })
-              });
-              setDossierId(dossier.id);
-              setOutput(JSON.stringify(dossier, null, 2));
-            }}
-          >
-            Generate 9-Section Dossier
-          </button>
-          <label>
-            Dossier ID
-            <input value={dossierId} onChange={(e) => setDossierId(e.target.value)} />
-          </label>
-          <button
-            className="secondary"
-            onClick={async () => {
-              const result = await fetchJson("/v1/export/dossier", {
-                method: "POST",
-                body: JSON.stringify({ featureId, dossierId, format: "markdown" })
-              });
-              setOutput(result.content);
-            }}
-          >
-            Export Markdown
-          </button>
-          <button
-            className="secondary"
-            onClick={async () => {
-              const result = await fetchJson("/v1/export/dossier", {
-                method: "POST",
-                body: JSON.stringify({ featureId, dossierId, format: "json" })
-              });
-              setOutput(result.content);
-            }}
-          >
-            Export JSON
-          </button>
-        </section>
+        <InterviewCard setOutput={setOutput} registerTourTarget={registerTourTarget} />
+        <SupportCard setOutput={setOutput} registerTourTarget={registerTourTarget} />
+        <IntegrationsCard setOutput={setOutput} />
+        <SignalStreamCard setOutput={setOutput} onFeatureIdFound={setFeatureId} />
+        <DossierCard featureId={featureId} setFeatureId={setFeatureId} setOutput={setOutput} />
       </div>
 
       <section className="card" style={{ marginTop: 16 }}>
         <h3>Output</h3>
         <pre>{output}</pre>
       </section>
+
+      <GuidedTour
+        activeTourIndex={activeTourIndex}
+        tourLayout={tourLayout}
+        viewportState={viewportState}
+        onNext={nextTourStep}
+        onPrevious={previousTourStep}
+        onClose={() => setActiveTourIndex(null)}
+      />
     </main>
   );
 }

@@ -4,11 +4,12 @@ import { tmpdir } from "node:os";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { startLocalService, type LocalService } from "../../apps/desktop/src/service/server";
 
-const jsonFetch = async <T = unknown>(url: string, init?: RequestInit) => {
+const jsonFetch = async <T = unknown>(url: string, token: string, init?: RequestInit) => {
   const response = await fetch(url, {
     ...init,
     headers: {
       "Content-Type": "application/json",
+      Authorization: `Bearer ${token}`,
       ...(init?.headers ?? {})
     }
   });
@@ -23,6 +24,7 @@ describe("end-to-end core loop", () => {
   const tempDir = mkdtempSync(join(tmpdir(), "scope-e2e-"));
   const port = 4511;
   let service: LocalService;
+  let token: string;
 
   beforeAll(async () => {
     service = await startLocalService({
@@ -35,6 +37,7 @@ describe("end-to-end core loop", () => {
         getIntegrationToken: async () => null
       } as never
     });
+    token = service.serviceToken;
   });
 
   afterAll(async () => {
@@ -43,12 +46,12 @@ describe("end-to-end core loop", () => {
   });
 
   it("runs interview -> signals -> ghost -> dossier -> export", async () => {
-    const interview = (await jsonFetch<{ id: string }>(`http://127.0.0.1:${port}/v1/interviews/start`, {
+    const interview = (await jsonFetch<{ id: string }>(`http://127.0.0.1:${port}/v1/interviews/start`, token, {
       method: "POST",
       body: JSON.stringify({ consentAccepted: true })
     })) as { id: string };
 
-    await jsonFetch(`http://127.0.0.1:${port}/v1/interviews/${interview.id}/transcript`, {
+    await jsonFetch(`http://127.0.0.1:${port}/v1/interviews/${interview.id}/transcript`, token, {
       method: "POST",
       body: JSON.stringify({
         segments: [
@@ -62,7 +65,7 @@ describe("end-to-end core loop", () => {
       })
     });
 
-    await jsonFetch(`http://127.0.0.1:${port}/v1/interviews/${interview.id}/stop`, {
+    await jsonFetch(`http://127.0.0.1:${port}/v1/interviews/${interview.id}/stop`, token, {
       method: "POST",
       body: JSON.stringify({})
     });
@@ -74,7 +77,7 @@ describe("end-to-end core loop", () => {
     ];
 
     for (let i = 0; i < inputs.length; i += 1) {
-      await jsonFetch(`http://127.0.0.1:${port}/v1/signals/ingest`, {
+      await jsonFetch(`http://127.0.0.1:${port}/v1/signals/ingest`, token, {
         method: "POST",
         body: JSON.stringify({
           source: i === 2 ? "posthog" : i === 1 ? "linear" : "slack",
@@ -84,19 +87,19 @@ describe("end-to-end core loop", () => {
       });
     }
 
-    const ghost = await jsonFetch<{ candidates: Array<{ id: string }> }>(`http://127.0.0.1:${port}/v1/features/ghost/scan`, {
+    const ghost = await jsonFetch<{ candidates: Array<{ id: string }> }>(`http://127.0.0.1:${port}/v1/features/ghost/scan`, token, {
       method: "POST",
       body: JSON.stringify({})
     });
 
     expect(ghost.candidates.length).toBeGreaterThan(0);
 
-    const dossier = await jsonFetch<{ id: string }>(`http://127.0.0.1:${port}/v1/dossiers/generate`, {
+    const dossier = await jsonFetch<{ id: string }>(`http://127.0.0.1:${port}/v1/dossiers/generate`, token, {
       method: "POST",
       body: JSON.stringify({ featureId: ghost.candidates[0].id })
     });
 
-    const exported = await jsonFetch<{ content: string }>(`http://127.0.0.1:${port}/v1/export/dossier`, {
+    const exported = await jsonFetch<{ content: string }>(`http://127.0.0.1:${port}/v1/export/dossier`, token, {
       method: "POST",
       body: JSON.stringify({
         featureId: ghost.candidates[0].id,

@@ -18,7 +18,7 @@ export const pushDossierToLinear = async (params: {
   const response = await safeFetch("https://api.linear.app/graphql", {
     method: "POST",
     headers: {
-      Authorization: params.apiKey,
+      Authorization: `Bearer ${params.apiKey}`,
       "Content-Type": "application/json"
     },
     body: JSON.stringify(body)

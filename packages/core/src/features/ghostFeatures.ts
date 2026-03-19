@@ -1,10 +1,10 @@
 import type { FeatureCandidate, Signal } from "@scope/types";
 import { cosineSimilarity, embedText } from "../ai/embeddings";
 import { tokenize } from "../utils/text";
-import { newId } from "../utils/id";
+import { stableFingerprint } from "../utils/id";
 import { nowIso } from "../utils/time";
 
-const CLUSTER_SIMILARITY_THRESHOLD = 0.2;
+const CLUSTER_SIMILARITY_THRESHOLD = 0.42;
 const CANDIDATE_MIN_SIGNALS = 3;
 const CANDIDATE_MIN_SCORE = 0.35;
 
@@ -83,7 +83,7 @@ export const detectGhostFeatures = (signals: Signal[]): FeatureCandidate[] => {
     if (size >= CANDIDATE_MIN_SIGNALS && score >= CANDIDATE_MIN_SCORE) {
       const clusterSignals = signals.filter((signal) => cluster.signalIds.includes(signal.id));
       candidates.push({
-        id: newId(),
+        id: stableFingerprint([...cluster.signalIds].sort().join("|")),
         title: makeTitle(clusterSignals),
         signalIds: [...new Set(cluster.signalIds)],
         clusterScore: Number(score.toFixed(3)),

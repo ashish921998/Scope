@@ -6,7 +6,7 @@ export const pushDossierToJira = async (params: {
   issueKey: string;
   markdown: string;
 }) => {
-  const response = await safeFetch(`${params.baseUrl}/rest/api/3/issue/${params.issueKey}/comment`, {
+  const response = await safeFetch(`${params.baseUrl}/rest/api/2/issue/${params.issueKey}/comment`, {
     method: "POST",
     headers: {
       Authorization: params.authHeader,

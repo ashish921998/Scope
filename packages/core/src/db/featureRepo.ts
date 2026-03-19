@@ -1,5 +1,6 @@
 import type { FeatureCandidate } from "@scope/types";
 import type { ScopeDb } from "./client";
+import { parseJson } from "./parseJson";
 
 export class FeatureRepo {
   constructor(private readonly db: ScopeDb) {}
@@ -22,6 +23,32 @@ export class FeatureRepo {
     return candidate;
   }
 
+  get(id: string): FeatureCandidate | undefined {
+    const row = this.db.sqlite
+      .prepare(`SELECT * FROM feature_candidates WHERE id = ?`)
+      .get(id) as {
+      id: string;
+      title: string;
+      signal_ids_json: string;
+      cluster_score: number;
+      status: FeatureCandidate["status"];
+      created_at: string;
+    } | undefined;
+
+    if (!row) {
+      return undefined;
+    }
+
+    return {
+      id: row.id,
+      title: row.title,
+      signalIds: parseJson(row.signal_ids_json, [] as string[]),
+      clusterScore: row.cluster_score,
+      status: row.status,
+      createdAt: row.created_at
+    };
+  }
+
   list(status?: FeatureCandidate["status"]) {
     const rows = (status
       ? this.db.sqlite
@@ -40,7 +67,7 @@ export class FeatureRepo {
       return {
         id: row.id,
         title: row.title,
-        signalIds: JSON.parse(row.signal_ids_json) as string[],
+        signalIds: parseJson(row.signal_ids_json, [] as string[]),
         clusterScore: row.cluster_score,
         status: row.status,
         createdAt: row.created_at

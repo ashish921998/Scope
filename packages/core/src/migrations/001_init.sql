@@ -69,12 +69,3 @@ CREATE TABLE IF NOT EXISTS dossiers (
   version INTEGER NOT NULL,
   created_at TEXT NOT NULL
 );
-
-CREATE TABLE IF NOT EXISTS integration_tokens (
-  provider TEXT PRIMARY KEY,
-  access_token TEXT NOT NULL,
-  refresh_token TEXT,
-  expires_at TEXT,
-  scope TEXT,
-  metadata_json TEXT
-);

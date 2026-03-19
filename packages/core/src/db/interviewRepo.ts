@@ -1,12 +1,6 @@
 import type { InterviewDebrief, InterviewSession, TranscriptSegment } from "@scope/types";
 import type { ScopeDb } from "./client";
-
-const parseJson = <T>(value: string | null, fallback: T): T => {
-  if (!value) {
-    return fallback;
-  }
-  return JSON.parse(value) as T;
-};
+import { parseJson } from "./parseJson";
 
 export class InterviewRepo {
   constructor(private readonly db: ScopeDb) {}
@@ -66,7 +60,7 @@ export class InterviewRepo {
       endedAt: row.ended_at ?? undefined,
       transcriptSegments: parseJson(row.transcript_json, []),
       followups: parseJson(row.followups_json, []),
-      debrief7: parseJson(row.debrief_json, undefined)
+      debrief: parseJson(row.debrief_json, undefined)
     };
   }
 }
