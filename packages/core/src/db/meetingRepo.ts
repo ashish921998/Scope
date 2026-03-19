@@ -84,11 +84,33 @@ export class MeetingRepo {
 
   list() {
     const rows = this.db.sqlite
-      .prepare(`SELECT id FROM meetings ORDER BY started_at DESC`)
-      .all() as Array<{ id: string }>;
+      .prepare(`SELECT * FROM meetings ORDER BY started_at DESC`)
+      .all() as Array<{
+      id: string;
+      title: string;
+      status: "active" | "completed";
+      platform: string | null;
+      started_at: string;
+      ended_at: string | null;
+      participants_json: string;
+      transcript_json: string;
+      notes_json: string | null;
+      calendar_event_id: string | null;
+      duration_ms: number | null;
+    }>;
 
-    return rows
-      .map((row) => this.get(row.id))
-      .filter((session): session is MeetingSession => Boolean(session));
+    return rows.map((row) => ({
+      id: row.id,
+      title: row.title,
+      status: row.status,
+      platform: row.platform ?? undefined,
+      startedAt: row.started_at,
+      endedAt: row.ended_at ?? undefined,
+      participants: parseJson<MeetingParticipant[]>(row.participants_json, []),
+      transcriptSegments: parseJson<TranscriptSegment[]>(row.transcript_json, []),
+      notes: parseJson<MeetingNotes | undefined>(row.notes_json, undefined),
+      calendarEventId: row.calendar_event_id ?? undefined,
+      durationMs: row.duration_ms ?? undefined
+    }));
   }
 }

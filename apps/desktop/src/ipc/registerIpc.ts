@@ -10,8 +10,7 @@ const PROVIDERS: ReadonlySet<IntegrationProvider> = new Set([
   "github",
   "posthog",
   "notion",
-  "jira",
-  "google"
+  "jira"
 ]);
 
 const KEY_PROVIDERS: ReadonlySet<ProviderKeyName> = new Set(["openai", "anthropic", "deepgram"]);

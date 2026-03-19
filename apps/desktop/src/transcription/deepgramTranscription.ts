@@ -4,7 +4,9 @@ import WebSocket, { type RawData } from "ws";
 import type { TranscriptSegment, TranscriptionSessionRef } from "@scope/types";
 import { assertAllowedEgress } from "@scope/core";
 import type {
+  AppendAudioResult,
   AudioChunkInput,
+  StartTranscriptionResult,
   StartTranscriptionOptions,
   StopTranscriptionResult,
   TranscriptionProvider
@@ -38,7 +40,7 @@ const normalizeSpeaker = (speaker: unknown): TranscriptSegment["speaker"] => {
   if (speaker === "interviewer" || speaker === "customer" || speaker === "system") {
     return speaker;
   }
-  return "system";
+  return "customer";
 };
 
 export class DeepgramStreamingTranscription implements TranscriptionProvider {
@@ -52,7 +54,7 @@ export class DeepgramStreamingTranscription implements TranscriptionProvider {
     }
   ) {}
 
-  async start(ref: TranscriptionSessionRef, options: StartTranscriptionOptions = {}) {
+  async start(ref: TranscriptionSessionRef, options: StartTranscriptionOptions = {}): Promise<StartTranscriptionResult> {
     if (ref.kind !== "meeting") {
       throw new Error("Deepgram transcription only supports meeting sessions.");
     }
@@ -87,7 +89,12 @@ export class DeepgramStreamingTranscription implements TranscriptionProvider {
     };
 
     this.sessions.set(meetingRef.id, state);
-    await this.connectRealtimeSocket(apiKey, state);
+    try {
+      await this.connectRealtimeSocket(apiKey, state);
+    } catch (error) {
+      this.sessions.delete(meetingRef.id);
+      throw error;
+    }
 
     return {
       sessionId: meetingRef.id,
@@ -99,7 +106,7 @@ export class DeepgramStreamingTranscription implements TranscriptionProvider {
     };
   }
 
-  async appendAudio(ref: TranscriptionSessionRef, input: AudioChunkInput) {
+  async appendAudio(ref: TranscriptionSessionRef, input: AudioChunkInput): Promise<AppendAudioResult> {
     if (ref.kind !== "meeting") {
       throw new Error("Deepgram transcription only supports meeting sessions.");
     }
@@ -126,7 +133,7 @@ export class DeepgramStreamingTranscription implements TranscriptionProvider {
     state.sampleRateHz = input.sampleRateHz ?? state.sampleRateHz;
     state.ws.send(chunk);
 
-      return {
+    return {
       sessionId: meetingRef.id,
       sessionKind: meetingRef.kind,
       realtimeSent: true,

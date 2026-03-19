@@ -1,5 +1,7 @@
 import type { TranscriptionSessionRef } from "@scope/types";
 import type {
+  AppendAudioResult,
+  StartTranscriptionResult,
   AudioChunkInput,
   StartTranscriptionOptions,
   StopTranscriptionResult,
@@ -11,11 +13,11 @@ export class TranscriptionRouter implements TranscriptionProvider {
     private readonly providers: Record<TranscriptionSessionRef["kind"], TranscriptionProvider>
   ) {}
 
-  async start(ref: TranscriptionSessionRef, options?: StartTranscriptionOptions) {
+  async start(ref: TranscriptionSessionRef, options?: StartTranscriptionOptions): Promise<StartTranscriptionResult> {
     return this.getProvider(ref).start(ref, options);
   }
 
-  async appendAudio(ref: TranscriptionSessionRef, input: AudioChunkInput) {
+  async appendAudio(ref: TranscriptionSessionRef, input: AudioChunkInput): Promise<AppendAudioResult> {
     return this.getProvider(ref).appendAudio(ref, input);
   }
 

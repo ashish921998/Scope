@@ -70,6 +70,10 @@ export class MeetingService {
       throw new Error("Meeting session not found.");
     }
 
+    if (session.status === "completed") {
+      return session;
+    }
+
     const endedAt = nowIso();
     const durationMs = Math.max(0, Date.parse(endedAt) - Date.parse(session.startedAt));
     this.meetingRepo.complete(sessionId, endedAt, durationMs);

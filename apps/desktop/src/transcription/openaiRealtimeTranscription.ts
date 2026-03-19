@@ -4,7 +4,9 @@ import WebSocket, { type RawData } from "ws";
 import type { TranscriptSegment, TranscriptionSessionRef } from "@scope/types";
 import { assertAllowedEgress, safeFetch } from "@scope/core";
 import type {
+  AppendAudioResult,
   AudioChunkInput,
+  StartTranscriptionResult,
   StartTranscriptionOptions,
   StopTranscriptionResult,
   TranscriptionProvider
@@ -93,7 +95,7 @@ export class OpenAIRealtimeTranscription implements TranscriptionProvider {
     }
   ) {}
 
-  async start(ref: TranscriptionSessionRef, options: StartTranscriptionOptions = {}) {
+  async start(ref: TranscriptionSessionRef, options: StartTranscriptionOptions = {}): Promise<StartTranscriptionResult> {
     if (ref.kind !== "interview") {
       throw new Error("OpenAI realtime transcription only supports interview sessions.");
     }
@@ -148,7 +150,7 @@ export class OpenAIRealtimeTranscription implements TranscriptionProvider {
     };
   }
 
-  async appendAudio(ref: TranscriptionSessionRef, input: AudioChunkInput) {
+  async appendAudio(ref: TranscriptionSessionRef, input: AudioChunkInput): Promise<AppendAudioResult> {
     if (ref.kind !== "interview") {
       throw new Error("OpenAI realtime transcription only supports interview sessions.");
     }
