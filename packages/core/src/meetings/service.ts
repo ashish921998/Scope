@@ -20,10 +20,14 @@ export class MeetingService {
     metadata?: MeetingSession["metadata"];
   }): MeetingSession {
     const now = nowIso();
+    const title = input.title.trim();
+    if (!title) {
+      throw new Error("Meeting title is required.");
+    }
     const session: MeetingSession = {
       id: newId(),
       status: input.status ?? "scheduled",
-      title: input.title.trim(),
+      title,
       consentState: input.consentState ?? "pending",
       startedAt: input.startedAt,
       calendarEventId: input.calendarEventId,
@@ -71,10 +75,14 @@ export class MeetingService {
   addNote(meetingId: string, input: { content: string; kind: MeetingNote["kind"] }) {
     this.get(meetingId);
     const now = nowIso();
+    const content = input.content.trim();
+    if (!content) {
+      throw new Error("Note content is required.");
+    }
     const note: MeetingNote = {
       id: newId(),
       meetingId,
-      content: input.content.trim(),
+      content,
       kind: input.kind,
       createdAt: now,
       updatedAt: now

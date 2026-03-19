@@ -168,9 +168,10 @@ export class MeetingRepo {
   }
 
   list(limit = 50) {
+    const safeLimit = Number.isInteger(limit) && limit > 0 ? Math.min(limit, 200) : 50;
     const rows = this.db.sqlite
       .prepare(`SELECT * FROM meetings ORDER BY created_at DESC LIMIT ?`)
-      .all(limit) as Array<{
+      .all(safeLimit) as Array<{
       id: string;
       status: MeetingSession["status"];
       title: string;

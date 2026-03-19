@@ -11,9 +11,8 @@ export class CalendarEventRepo {
         `INSERT INTO calendar_events(
           id, provider, provider_event_id, title, starts_at, ends_at, attendees_json, metadata_json, created_at, updated_at
         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        ON CONFLICT(id) DO UPDATE SET
-          provider = excluded.provider,
-          provider_event_id = excluded.provider_event_id,
+        ON CONFLICT(provider, provider_event_id) DO UPDATE SET
+          id = excluded.id,
           title = excluded.title,
           starts_at = excluded.starts_at,
           ends_at = excluded.ends_at,
