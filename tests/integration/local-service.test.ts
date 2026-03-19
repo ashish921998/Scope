@@ -142,6 +142,88 @@ describe("local service API", () => {
     expect(interviewSignal).toBeTruthy();
   });
 
+  it("supports meeting lifecycle, notes generation, listing, and signal ingestion", async () => {
+    const meeting = await jsonFetch(`http://127.0.0.1:${port}/v1/meetings/start`, token, {
+      method: "POST",
+      body: JSON.stringify({})
+    });
+    expect(meeting.response.status).toBe(201);
+
+    const meetingId = String(meeting.data.id);
+    const append = await jsonFetch(`http://127.0.0.1:${port}/v1/meetings/${meetingId}/transcript`, token, {
+      method: "POST",
+      body: JSON.stringify({
+        segments: [
+          {
+            id: "meeting-seg-2",
+            speaker: "customer",
+            text: "Action item: review the launch checklist before Friday.",
+            timestampMs: 20
+          },
+          {
+            id: "meeting-seg-1",
+            speaker: "customer",
+            text: "We decided to ship the onboarding automation beta next sprint.",
+            timestampMs: 10
+          }
+        ]
+      })
+    });
+    expect(append.response.status).toBe(200);
+
+    const stop = await jsonFetch(`http://127.0.0.1:${port}/v1/meetings/${meetingId}/stop`, token, {
+      method: "POST",
+      body: JSON.stringify({})
+    });
+    expect(stop.response.status).toBe(200);
+    expect(stop.data.status).toBe("completed");
+    expect(typeof stop.data.notes?.summary).toBe("string");
+    expect((stop.data.notes?.decisions ?? []).length).toBeGreaterThan(0);
+
+    const getMeeting = await jsonFetch(`http://127.0.0.1:${port}/v1/meetings/${meetingId}`, token);
+    expect(getMeeting.response.status).toBe(200);
+    expect((getMeeting.data.transcriptSegments as Array<{ id: string }>).map((segment) => segment.id)).toEqual([
+      "meeting-seg-1",
+      "meeting-seg-2"
+    ]);
+
+    const listMeetings = await jsonFetch(`http://127.0.0.1:${port}/v1/meetings`, token);
+    expect(listMeetings.response.status).toBe(200);
+    expect((listMeetings.data.items as Array<{ id: string }>).some((item) => item.id === meetingId)).toBe(true);
+
+    const stream = await jsonFetch(`http://127.0.0.1:${port}/v1/signals/stream`, token);
+    expect(stream.response.status).toBe(200);
+    const meetingSignal = (stream.data.items as Array<{
+      source: string;
+      sourceRef: string;
+      evidenceRefs: Array<{ uri: string; timestampMs?: number }>;
+    }>).find((item) => item.source === "meeting" && item.sourceRef === `${meetingId}:meeting-seg-1`);
+    expect(meetingSignal).toBeTruthy();
+    expect(meetingSignal?.evidenceRefs[0]?.uri).toBe(`meeting://${meetingId}/segment/meeting-seg-1`);
+    expect(meetingSignal?.evidenceRefs[0]?.timestampMs).toBe(10);
+  });
+
+  it("exposes meeting transcription endpoints with key enforcement", async () => {
+    const startMeeting = await jsonFetch(`http://127.0.0.1:${port}/v1/meetings/start`, token, {
+      method: "POST",
+      body: JSON.stringify({})
+    });
+    expect(startMeeting.response.status).toBe(201);
+
+    const meetingId = startMeeting.data.id as string;
+    const startTranscription = await jsonFetch(
+      `http://127.0.0.1:${port}/v1/meetings/${meetingId}/transcription/start`,
+      token,
+      {
+        method: "POST",
+        body: JSON.stringify({ language: "en" })
+      }
+    );
+
+    expect(startTranscription.response.status).toBe(400);
+    expect(String(startTranscription.data.error)).toContain("OpenAI provider key");
+  });
+
   it("starts with strict encrypted DB mode enabled", async () => {
     const encryptedDir = mkdtempSync(join(tmpdir(), "scope-test-encrypted-"));
     const encryptedService = await startLocalService({

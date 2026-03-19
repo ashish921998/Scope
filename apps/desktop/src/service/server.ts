@@ -7,6 +7,7 @@ import { IntegrationSyncService } from "../integrations/syncService";
 import type { AppLogger } from "../telemetry/logger";
 import { OpenAIRealtimeTranscription } from "../transcription";
 import { registerInterviewRoutes } from "./routes/interviews";
+import { registerMeetingRoutes } from "./routes/meetings";
 import { registerSignalRoutes } from "./routes/signals";
 import { registerDossierRoutes } from "./routes/dossiers";
 import { registerIntegrationRoutes } from "./routes/integrations";
@@ -45,11 +46,19 @@ export const startLocalService = async (params: {
   });
   const transcription = new OpenAIRealtimeTranscription({
     getOpenAIKey: () => params.keychainStore.getProviderKey("openai"),
-    onTranscriptSegments: (interviewId, segments) => {
+    onTranscriptSegments: (sessionId, segments) => {
+      let interviewError: unknown = null;
       try {
-        services.interviewService.appendTranscript(interviewId, segments);
+        services.interviewService.appendTranscript(sessionId, segments);
+        return;
       } catch (error) {
-        params.logger?.warn("Unable to append realtime transcript segment", { error });
+        interviewError = error;
+      }
+
+      try {
+        services.meetingService.appendTranscript(sessionId, segments);
+      } catch (error) {
+        params.logger?.warn("Unable to append realtime transcript segment", { error, interviewError, sessionId });
       }
     },
     logger: params.logger ?? console
@@ -121,6 +130,7 @@ export const startLocalService = async (params: {
   });
 
   registerInterviewRoutes(app, { services, transcription, logger: params.logger });
+  registerMeetingRoutes(app, { services, transcription, logger: params.logger });
   registerSignalRoutes(app, { services });
   registerDossierRoutes(app, { services, keychainStore: params.keychainStore });
   registerIntegrationRoutes(app, { keychainStore: params.keychainStore, integrationSync, logger: params.logger });

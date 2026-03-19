@@ -27,16 +27,11 @@ export const registerInterviewRoutes = (app: Express, deps: InterviewRouteDeps) 
     try {
       const segments = (req.body?.segments ?? []) as TranscriptSegment[];
       const result = services.interviewService.appendTranscript(req.params.id, segments);
-      for (const segment of segments) {
-        services.signalService.ingest({
-          source: "interview",
-          sourceRef: `${req.params.id}:${segment.id}`,
-          text: segment.text,
-          evidenceKind: "transcript",
-          evidenceUri: `interview://${req.params.id}/segment/${segment.id}`,
-          timestampMs: segment.timestampMs
-        });
-      }
+      services.signalService.ingestTranscriptSegments({
+        source: "interview",
+        sessionId: req.params.id,
+        segments
+      });
       res.status(200).json(result);
     } catch (error) {
       res.status(404).json({ error: (error as Error).message });
@@ -98,16 +93,11 @@ export const registerInterviewRoutes = (app: Express, deps: InterviewRouteDeps) 
     try {
       const result = await transcription.stop(req.params.id);
       const transcript = services.interviewService.getTranscript(req.params.id);
-      for (const segment of transcript.transcriptSegments) {
-        services.signalService.ingest({
-          source: "interview",
-          sourceRef: `${req.params.id}:${segment.id}`,
-          text: segment.text,
-          evidenceKind: "transcript",
-          evidenceUri: `interview://${req.params.id}/segment/${segment.id}`,
-          timestampMs: segment.timestampMs
-        });
-      }
+      services.signalService.ingestTranscriptSegments({
+        source: "interview",
+        sessionId: req.params.id,
+        segments: transcript.transcriptSegments
+      });
       res.status(200).json({
         ...result,
         transcript
