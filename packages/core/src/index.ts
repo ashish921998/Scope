@@ -1,5 +1,7 @@
 export * from "./app";
 export * from "./ai/embeddings";
+export * from "./db/calendarEventRepo";
+export * from "./db/meetingRepo";
 export * from "./signals/classifier";
 export * from "./signals/dedupe";
 export * from "./signals/service";
@@ -9,5 +11,6 @@ export * from "./dossier/validator";
 export * from "./export/formatters";
 export * from "./integrations/linearAdapter";
 export * from "./integrations/jiraAdapter";
+export * from "./meetings/service";
 export * from "./security/redaction";
 export * from "./security/egress";

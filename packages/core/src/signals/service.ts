@@ -114,8 +114,10 @@ export class SignalService {
 const inferEvidenceKind = (source: SignalIngestInput["source"]) => {
   switch (source) {
     case "interview":
+    case "meeting":
       return "transcript" as const;
     case "posthog":
+    case "google":
       return "event" as const;
     case "linear":
     case "github":

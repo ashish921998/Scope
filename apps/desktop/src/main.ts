@@ -2,6 +2,7 @@ import { app, BrowserWindow } from "electron";
 import { join } from "node:path";
 import { CaptureService } from "./audio/captureService";
 import { registerIpcHandlers } from "./ipc/registerIpc";
+import { getMediaPermissionStatus } from "./permissions/mediaPermissions";
 import { KeychainStore } from "./security/keychain";
 import { startLocalService } from "./service/server";
 import { type AppLogger, createAppLogger, resolveDefaultLogPath } from "./telemetry/logger";
@@ -41,6 +42,7 @@ const createWindow = async (logger: AppLogger) => {
 
   registerIpcHandlers({
     captureService,
+    getMediaPermissionStatus,
     keychainStore,
     servicePort: localService.port,
     serviceToken: localService.serviceToken,

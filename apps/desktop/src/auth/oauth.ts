@@ -62,6 +62,21 @@ const buildAuthUrl = (provider: IntegrationProvider, redirectUri: string, state:
     return `https://github.com/login/oauth/authorize?${params.toString()}`;
   }
 
+  if (provider === "google") {
+    const params = new URLSearchParams({
+      client_id: process.env.GOOGLE_CLIENT_ID ?? "",
+      redirect_uri: redirectUri,
+      response_type: "code",
+      scope: process.env.GOOGLE_SCOPES ?? "openid email profile https://www.googleapis.com/auth/calendar.readonly",
+      state,
+      access_type: "offline",
+      prompt: "consent",
+      code_challenge: codeChallenge,
+      code_challenge_method: "S256"
+    });
+    return `https://accounts.google.com/o/oauth2/v2/auth?${params.toString()}`;
+  }
+
   if (provider === "notion") {
     const params = new URLSearchParams({
       client_id: process.env.NOTION_CLIENT_ID ?? "",
@@ -250,6 +265,35 @@ export const refreshIntegrationToken = async (
       expiresAt: toExpiresAt(typeof data.expires_in === "number" ? data.expires_in : undefined),
       metadata: {
         tokenType: data.token_type ?? undefined
+      }
+    };
+  }
+
+  if (provider === "google") {
+    const body = new URLSearchParams({
+      client_id: requireEnv("GOOGLE_CLIENT_ID"),
+      client_secret: requireEnv("GOOGLE_CLIENT_SECRET"),
+      grant_type: "refresh_token",
+      refresh_token: refreshToken
+    });
+    const response = await safeFetch("https://oauth2.googleapis.com/token", {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: body.toString()
+    });
+    const data = await parseJsonOrThrow(response, "Google token refresh");
+    if (!response.ok || typeof data.access_token !== "string") {
+      throw new Error(`Google token refresh failed: ${JSON.stringify(data)}`);
+    }
+    return {
+      provider,
+      accessToken: data.access_token,
+      refreshToken: (data.refresh_token as string | undefined) ?? refreshToken,
+      scope: (data.scope as string | undefined) ?? undefined,
+      expiresAt: toExpiresAt(typeof data.expires_in === "number" ? data.expires_in : undefined),
+      metadata: {
+        tokenType: data.token_type ?? undefined,
+        idToken: data.id_token ?? undefined
       }
     };
   }
@@ -451,6 +495,37 @@ const exchangeOAuthCode = async (
       scope: data.scope as string | undefined,
       metadata: {
         tokenType: data.token_type ?? undefined
+      }
+    };
+  }
+
+  if (provider === "google") {
+    const body = new URLSearchParams({
+      client_id: requireEnv("GOOGLE_CLIENT_ID"),
+      client_secret: requireEnv("GOOGLE_CLIENT_SECRET"),
+      code,
+      code_verifier: codeVerifier,
+      grant_type: "authorization_code",
+      redirect_uri: redirectUri
+    });
+    const response = await safeFetch("https://oauth2.googleapis.com/token", {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: body.toString()
+    });
+    const data = await parseJsonOrThrow(response, "Google token exchange");
+    if (!response.ok || typeof data.access_token !== "string") {
+      throw new Error(`Google token exchange failed: ${JSON.stringify(data)}`);
+    }
+    return {
+      provider,
+      accessToken: data.access_token,
+      refreshToken: (data.refresh_token as string | undefined) ?? undefined,
+      scope: (data.scope as string | undefined) ?? undefined,
+      expiresAt: toExpiresAt(typeof data.expires_in === "number" ? data.expires_in : undefined),
+      metadata: {
+        tokenType: data.token_type ?? undefined,
+        idToken: data.id_token ?? undefined
       }
     };
   }

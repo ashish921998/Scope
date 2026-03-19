@@ -26,6 +26,7 @@ White-labeled Arena-equivalent desktop app built with:
 - SQLite migrations and schema
 - Keychain storage for provider and integration secrets
 - OAuth callback loopback implementation (`http://127.0.0.1:<port>/oauth/callback`)
+- Meeting foundation types, storage, and calendar-event linking primitives
 
 ### Phase 1 Core Loop
 - Interview session start/stop with consent gate
@@ -118,8 +119,13 @@ Release environment:
 - PostHog integration uses API key mode in this implementation.
 - Packaged desktop builds load the statically exported renderer from `apps/desktop/dist/renderer`.
 - OAuth connect now completes loopback callback + provider token exchange and stores tokens in Keychain.
+- Google is a valid OAuth-capable integration provider for foundation work, but Google sync/UI flows are not yet wired.
 - Integration sync pulls Slack/Linear/PostHog events and ingests canonical signals into the local stream.
 - Interview transcript append/realtime-stop auto-ingests interview signals (in addition to transcript persistence).
+- Meeting capture requires explicit user action and app-level consent before microphone or screen/system capture starts.
+- Granted macOS media permissions are necessary but not sufficient; Scope still requires explicit in-app consent.
+- Meeting metadata, linked calendar metadata, local notes, and transcription session refs stay local in this phase.
+- Scope does not run hidden background meeting recording or background calendar sync in this phase.
 - `SCOPE_DB_ENCRYPTION_REQUIRED=true` enforces SQLCipher-compatible cipher support for encrypted local DB startup.
 - `SCOPE_DB_CIPHER=sqlcipher` controls the cipher mode (defaults to `sqlcipher`).
 - `SCOPE_LOCAL_SERVICE_PORT` overrides the desktop local service port (used by packaged smoke tests).

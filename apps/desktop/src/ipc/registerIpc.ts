@@ -1,5 +1,5 @@
 import { ipcMain, type IpcMainInvokeEvent } from "electron";
-import type { IntegrationProvider } from "@scope/types";
+import type { IntegrationProvider, MediaPermissionStatus } from "@scope/types";
 import { connectIntegrationOAuth } from "../auth/oauth";
 import type { CaptureService } from "../audio/captureService";
 import type { KeychainStore } from "../security/keychain";
@@ -8,6 +8,7 @@ const PROVIDERS: ReadonlySet<IntegrationProvider> = new Set([
   "slack",
   "linear",
   "github",
+  "google",
   "posthog",
   "notion",
   "jira"
@@ -55,12 +56,18 @@ export const registerIpcHandlers = (params: {
   servicePort: number;
   serviceToken: string;
   rendererUrl: string;
+  getMediaPermissionStatus: () => Promise<MediaPermissionStatus> | MediaPermissionStatus;
 }) => {
   const baseUrl = `http://127.0.0.1:${params.servicePort}`;
 
   ipcMain.handle("service/getToken", (event) => {
     assertTrustedSender(event, params.rendererUrl);
     return params.serviceToken;
+  });
+
+  ipcMain.handle("media/getPermissions", async (event) => {
+    assertTrustedSender(event, params.rendererUrl);
+    return params.getMediaPermissionStatus();
   });
 
   ipcMain.handle("auth/connectIntegration", async (event, provider: unknown) => {
