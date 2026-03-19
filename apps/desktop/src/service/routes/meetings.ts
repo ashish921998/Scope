@@ -64,6 +64,7 @@ export const registerMeetingRoutes = (app: Express, deps: MeetingRouteDeps) => {
         await transcription.stop(req.params.id);
       } catch (error) {
         logger?.warn("Stopping transcription failed before meeting stop", { error });
+        throw error;
       }
       const session = await services.meetingService.stop(req.params.id);
       res.status(200).json(session);
@@ -91,7 +92,11 @@ export const registerMeetingRoutes = (app: Express, deps: MeetingRouteDeps) => {
 
   app.post("/v1/meetings/:id/transcription/start", async (req, res) => {
     try {
-      services.meetingService.get(req.params.id);
+      const meeting = services.meetingService.get(req.params.id);
+      if (meeting.status === "completed") {
+        res.status(409).json({ error: "Meeting session already completed." });
+        return;
+      }
       const started = await transcription.start(req.params.id, {
         realtimeModel: req.body?.realtimeModel,
         fallbackModel: req.body?.fallbackModel,

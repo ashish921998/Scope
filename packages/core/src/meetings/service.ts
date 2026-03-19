@@ -44,7 +44,7 @@ export class MeetingService {
       throw new Error("Meeting session not found.");
     }
 
-    const anthropicKey = this.getAnthropicKey ? await this.getAnthropicKey() : null;
+    const anthropicKey = this.getAnthropicKey ? await this.getAnthropicKey().catch(() => null) : null;
     const notes = await generateMeetingNotes(session.transcriptSegments, anthropicKey);
     this.meetingRepo.complete(sessionId, notes, nowIso());
 
