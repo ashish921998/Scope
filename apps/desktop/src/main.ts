@@ -37,7 +37,7 @@ const createWindow = async (logger: AppLogger) => {
     port: localService.port,
     dbPath
   });
-  const captureService = new CaptureService(`http://127.0.0.1:${localService.port}`);
+  const captureService = new CaptureService(`http://127.0.0.1:${localService.port}`, localService.serviceToken);
 
   registerIpcHandlers({
     captureService,

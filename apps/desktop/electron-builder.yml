@@ -5,6 +5,9 @@ directories:
 files:
   - dist/**
   - package.json
+extraResources:
+  - from: src/audio/native/build
+    to: native
 afterSign: scripts/notarize.mjs
 mac:
   category: public.app-category.productivity

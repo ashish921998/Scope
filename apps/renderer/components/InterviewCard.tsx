@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { fetchJson } from "../lib/api";
-import { float32ToPcm16Base64, captureMicPcm16Chunk } from "../lib/audio";
+import { captureMicPcm16Chunk, float32ToPcm16Base64 } from "../lib/audio";
 
 const AUDIO_PROCESSOR_WORKLET = `
 class AudioProcessor extends AudioWorkletProcessor {
@@ -27,11 +27,12 @@ export function InterviewCard({ setOutput, registerTourTarget }: InterviewCardPr
   const [interviewId, setInterviewId] = useState("");
   const [transcriptText, setTranscriptText] = useState("Customer says onboarding feels manual and slow.");
   const [transcriptionLanguage, setTranscriptionLanguage] = useState("en");
-  const [chunkSpeaker, setChunkSpeaker] = useState("customer");
+  const [chunkSource, setChunkSource] = useState<"mic" | "system">("mic");
   const [audioBase64, setAudioBase64] = useState("");
   const [micCaptureSeconds, setMicCaptureSeconds] = useState("3");
   const [liveCapturing, setLiveCapturing] = useState(false);
   const [includeSystemAudio, setIncludeSystemAudio] = useState(true);
+  const [liveCaptureMode, setLiveCaptureMode] = useState<"native" | "browser">("native");
   const [openaiKey, setOpenaiKey] = useState("");
   const liveCleanupRef = useRef<null | (() => Promise<void> | void)>(null);
   const sendingChunkRef = useRef(Promise.resolve());
@@ -43,6 +44,101 @@ export function InterviewCard({ setOutput, registerTourTarget }: InterviewCardPr
       }
     };
   }, []);
+
+  const startBrowserFallbackCapture = async () => {
+    await fetchJson(`/v1/interviews/${interviewId}/transcription/start`, {
+      method: "POST",
+      body: JSON.stringify({
+        language: transcriptionLanguage
+      })
+    });
+
+    const micStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    const systemStream =
+      includeSystemAudio && navigator.mediaDevices.getDisplayMedia
+        ? await navigator.mediaDevices.getDisplayMedia({ audio: true, video: true })
+        : null;
+    const ctx = new AudioContext({ sampleRate: 24000 });
+
+    const blob = new Blob([AUDIO_PROCESSOR_WORKLET], { type: "application/javascript" });
+    const workletUrl = URL.createObjectURL(blob);
+    try {
+      await ctx.audioWorklet.addModule(workletUrl);
+    } finally {
+      URL.revokeObjectURL(workletUrl);
+    }
+
+    const micSource = ctx.createMediaStreamSource(micStream);
+    const systemAudioTracks = systemStream?.getAudioTracks() ?? [];
+    const systemSource =
+      systemStream && systemAudioTracks.length > 0 ? ctx.createMediaStreamSource(systemStream) : null;
+    const workletNode = new AudioWorkletNode(ctx, "scope-live-processor");
+
+    workletNode.port.onmessage = (event: MessageEvent<Float32Array>) => {
+      const chunkBase64 = float32ToPcm16Base64(event.data);
+      sendingChunkRef.current = sendingChunkRef.current
+        .then(() =>
+          fetchJson(`/v1/interviews/${interviewId}/transcription/chunk`, {
+            method: "POST",
+            body: JSON.stringify({ audioBase64: chunkBase64, source: chunkSource })
+          })
+        )
+        .catch(() => {});
+    };
+
+    micSource.connect(workletNode);
+    if (systemSource) {
+      systemSource.connect(workletNode);
+    }
+    workletNode.connect(ctx.destination);
+    setLiveCapturing(true);
+    setOutput("Browser fallback capture started.");
+
+    liveCleanupRef.current = async () => {
+      workletNode.disconnect();
+      micSource.disconnect();
+      if (systemSource) {
+        systemSource.disconnect();
+      }
+      micStream.getTracks().forEach((track) => track.stop());
+      systemStream?.getTracks().forEach((track) => track.stop());
+      await ctx.close();
+      await sendingChunkRef.current.catch(() => {});
+      await fetchJson(`/v1/interviews/${interviewId}/transcription/stop`, {
+        method: "POST",
+        body: JSON.stringify({})
+      });
+      setLiveCapturing(false);
+    };
+  };
+
+  const startLiveCapture = async () => {
+    if (!interviewId) {
+      setOutput("Start interview first.");
+      return;
+    }
+    if (liveCapturing) {
+      setOutput("Live capture already running.");
+      return;
+    }
+
+    if (liveCaptureMode === "native") {
+      if (!window.scope) {
+        setOutput("Desktop IPC bridge unavailable. Switch to Browser Fallback mode outside Electron.");
+        return;
+      }
+      const result = await window.scope.startCapture(interviewId, "default", includeSystemAudio);
+      setLiveCapturing(true);
+      setOutput(JSON.stringify(result, null, 2));
+      liveCleanupRef.current = async () => {
+        await window.scope?.stopCapture(interviewId);
+        setLiveCapturing(false);
+      };
+      return;
+    }
+
+    await startBrowserFallbackCapture();
+  };
 
   return (
     <section className="card">
@@ -137,6 +233,13 @@ export function InterviewCard({ setOutput, registerTourTarget }: InterviewCardPr
         />
       </label>
       <label>
+        Chunk Source
+        <select value={chunkSource} onChange={(e) => setChunkSource(e.target.value as "mic" | "system")}>
+          <option value="mic">Mic</option>
+          <option value="system">System</option>
+        </select>
+      </label>
+      <label>
         Mic Capture Seconds
         <input
           value={micCaptureSeconds}
@@ -152,6 +255,13 @@ export function InterviewCard({ setOutput, registerTourTarget }: InterviewCardPr
         >
           <option value="yes">Yes</option>
           <option value="no">No</option>
+        </select>
+      </label>
+      <label>
+        Live Capture Mode
+        <select value={liveCaptureMode} onChange={(e) => setLiveCaptureMode(e.target.value as "native" | "browser")}>
+          <option value="native">Native</option>
+          <option value="browser">Browser Fallback</option>
         </select>
       </label>
       <button
@@ -173,86 +283,13 @@ export function InterviewCard({ setOutput, registerTourTarget }: InterviewCardPr
         className="secondary"
         onClick={async () => {
           try {
-            if (!interviewId) {
-              setOutput("Start interview first.");
-              return;
-            }
-            if (liveCapturing) {
-              setOutput("Live capture already running.");
-              return;
-            }
-
-            await fetchJson(`/v1/interviews/${interviewId}/transcription/start`, {
-              method: "POST",
-              body: JSON.stringify({
-                language: transcriptionLanguage
-              })
-            });
-
-            const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-            const systemStream =
-              includeSystemAudio && navigator.mediaDevices.getDisplayMedia
-                ? await navigator.mediaDevices.getDisplayMedia({ audio: true, video: true })
-                : null;
-            const ctx = new AudioContext({ sampleRate: 24000 });
-
-            const blob = new Blob([AUDIO_PROCESSOR_WORKLET], { type: "application/javascript" });
-            const workletUrl = URL.createObjectURL(blob);
-            try {
-              await ctx.audioWorklet.addModule(workletUrl);
-            } finally {
-              URL.revokeObjectURL(workletUrl);
-            }
-
-            const source = ctx.createMediaStreamSource(stream);
-            const systemAudioTracks = systemStream?.getAudioTracks() ?? [];
-            const systemSource =
-              systemStream && systemAudioTracks.length > 0 ? ctx.createMediaStreamSource(systemStream) : null;
-            const workletNode = new AudioWorkletNode(ctx, "scope-live-processor");
-
-            workletNode.port.onmessage = (event: MessageEvent<Float32Array>) => {
-              const input = event.data;
-              const chunkBase64 = float32ToPcm16Base64(input);
-              sendingChunkRef.current = sendingChunkRef.current
-                .then(() =>
-                  fetchJson(`/v1/interviews/${interviewId}/transcription/chunk`, {
-                    method: "POST",
-                    body: JSON.stringify({ audioBase64: chunkBase64, speaker: chunkSpeaker })
-                  })
-                )
-                .catch(() => {});
-            };
-
-            source.connect(workletNode);
-            if (systemSource) {
-              systemSource.connect(workletNode);
-            }
-            workletNode.connect(ctx.destination);
-            setLiveCapturing(true);
-            setOutput("Live mic streaming started.");
-
-            liveCleanupRef.current = async () => {
-              workletNode.disconnect();
-              source.disconnect();
-              if (systemSource) {
-                systemSource.disconnect();
-              }
-              stream.getTracks().forEach((track) => track.stop());
-              systemStream?.getTracks().forEach((track) => track.stop());
-              await ctx.close();
-              await sendingChunkRef.current.catch(() => {});
-              await fetchJson(`/v1/interviews/${interviewId}/transcription/stop`, {
-                method: "POST",
-                body: JSON.stringify({})
-              });
-              setLiveCapturing(false);
-            };
+            await startLiveCapture();
           } catch (error) {
             setOutput((error as Error).message);
           }
         }}
       >
-        Start Live Mic Stream
+        Start Live Capture
       </button>
       <button
         className="secondary"
@@ -264,21 +301,14 @@ export function InterviewCard({ setOutput, registerTourTarget }: InterviewCardPr
             }
             await liveCleanupRef.current();
             liveCleanupRef.current = null;
-            setOutput("Live mic streaming stopped.");
+            setOutput("Live capture stopped.");
           } catch (error) {
             setOutput((error as Error).message);
           }
         }}
       >
-        Stop Live Mic Stream
+        Stop Live Capture
       </button>
-      <label>
-        Chunk Speaker
-        <select value={chunkSpeaker} onChange={(e) => setChunkSpeaker(e.target.value)}>
-          <option value="customer">Customer</option>
-          <option value="interviewer">Interviewer</option>
-        </select>
-      </label>
       <button
         className="secondary"
         onClick={async () => {
@@ -291,7 +321,7 @@ export function InterviewCard({ setOutput, registerTourTarget }: InterviewCardPr
               method: "POST",
               body: JSON.stringify({
                 audioBase64,
-                speaker: chunkSpeaker
+                source: chunkSource
               })
             });
             setOutput(JSON.stringify(result, null, 2));
@@ -325,7 +355,10 @@ export function InterviewCard({ setOutput, registerTourTarget }: InterviewCardPr
       <button
         className="secondary"
         onClick={async () => {
-          if (!interviewId) { setOutput("Start interview first."); return; }
+          if (!interviewId) {
+            setOutput("Start interview first.");
+            return;
+          }
           const segments = [{ id: crypto.randomUUID(), speaker: "customer" as const, text: transcriptText, timestampMs: Date.now() }];
           try {
             const result = await fetchJson(`/v1/interviews/${interviewId}/transcript`, {
