@@ -141,6 +141,10 @@ export function InterviewCard({ setOutput, registerTourTarget }: InterviewCardPr
       micStream?.getTracks().forEach((track) => track.stop());
       systemStream?.getTracks().forEach((track) => track.stop());
       await ctx?.close().catch(() => {});
+      await fetchJson(`/v1/interviews/${interviewId}/transcription/stop`, {
+        method: "POST",
+        body: JSON.stringify({})
+      }).catch(() => {});
       throw error;
     }
   };
