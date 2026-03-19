@@ -10,6 +10,15 @@ declare global {
       generateDossier: (featureId: string) => Promise<unknown>;
       exportDossier: (featureId: string, format: "markdown" | "json") => Promise<unknown>;
       getServiceToken: () => Promise<string>;
+      getServiceBaseUrl: () => Promise<string>;
+      getOverlayState: () => Promise<{
+        interviewId: string;
+        title: string;
+        confidence: "low" | "medium" | "high";
+        startedAt: string;
+        visible: boolean;
+      } | null>;
+      stopOverlaySession: () => Promise<unknown>;
     };
   }
 }

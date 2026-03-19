@@ -1,6 +1,7 @@
-const API = process.env.NEXT_PUBLIC_API_URL ?? "http://127.0.0.1:4010";
+const DEFAULT_API = process.env.NEXT_PUBLIC_API_URL ?? "http://127.0.0.1:4010";
 
 let cachedToken: string | null = null;
+let cachedBaseUrl: string | null = null;
 
 const getToken = async (): Promise<string | null> => {
   if (cachedToken) return cachedToken;
@@ -11,8 +12,17 @@ const getToken = async (): Promise<string | null> => {
 };
 
 export const fetchJson = async (path: string, init?: RequestInit) => {
+  let baseUrl = cachedBaseUrl;
+  if (!baseUrl && typeof window !== "undefined" && window.scope?.getServiceBaseUrl) {
+    try {
+      baseUrl = await window.scope.getServiceBaseUrl();
+      cachedBaseUrl = baseUrl;
+    } catch {
+      baseUrl = DEFAULT_API;
+    }
+  }
   const token = await getToken();
-  const response = await fetch(`${API}${path}`, {
+  const response = await fetch(`${baseUrl ?? DEFAULT_API}${path}`, {
     ...init,
     headers: {
       "Content-Type": "application/json",

@@ -11,5 +11,8 @@ contextBridge.exposeInMainWorld("scope", {
   generateDossier: (featureId: string) => ipcRenderer.invoke("dossier/generate", featureId),
   exportDossier: (featureId: string, format: "markdown" | "json") =>
     ipcRenderer.invoke("export/dossier", featureId, format),
-  getServiceToken: () => ipcRenderer.invoke("service/getToken")
+  getServiceToken: () => ipcRenderer.invoke("service/getToken"),
+  getServiceBaseUrl: () => ipcRenderer.invoke("service/getBaseUrl"),
+  getOverlayState: () => ipcRenderer.invoke("overlay/getState"),
+  stopOverlaySession: () => ipcRenderer.invoke("overlay/stopSession")
 });

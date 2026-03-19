@@ -2,6 +2,7 @@ import { ipcMain, type IpcMainInvokeEvent } from "electron";
 import type { IntegrationProvider } from "@scope/types";
 import { connectIntegrationOAuth } from "../auth/oauth";
 import type { CaptureService } from "../audio/captureService";
+import type { OverlayWindowState } from "../windows/overlayWindow";
 import type { KeychainStore } from "../security/keychain";
 
 const PROVIDERS: ReadonlySet<IntegrationProvider> = new Set([
@@ -10,7 +11,8 @@ const PROVIDERS: ReadonlySet<IntegrationProvider> = new Set([
   "github",
   "posthog",
   "notion",
-  "jira"
+  "jira",
+  "google_calendar"
 ]);
 
 const KEY_PROVIDERS = new Set(["openai", "anthropic"]);
@@ -55,12 +57,19 @@ export const registerIpcHandlers = (params: {
   servicePort: number;
   serviceToken: string;
   rendererUrl: string;
+  getOverlayState: () => OverlayWindowState | null;
+  stopOverlaySession: () => Promise<unknown>;
 }) => {
   const baseUrl = `http://127.0.0.1:${params.servicePort}`;
 
   ipcMain.handle("service/getToken", (event) => {
     assertTrustedSender(event, params.rendererUrl);
     return params.serviceToken;
+  });
+
+  ipcMain.handle("service/getBaseUrl", (event) => {
+    assertTrustedSender(event, params.rendererUrl);
+    return baseUrl;
   });
 
   ipcMain.handle("auth/connectIntegration", async (event, provider: unknown) => {
@@ -98,6 +107,16 @@ export const registerIpcHandlers = (params: {
     assertTrustedSender(event, params.rendererUrl);
     const safeSessionId = ensureString(sessionId, "sessionId");
     return params.captureService.stopCapture(safeSessionId);
+  });
+
+  ipcMain.handle("overlay/getState", (event) => {
+    assertTrustedSender(event, params.rendererUrl);
+    return params.getOverlayState();
+  });
+
+  ipcMain.handle("overlay/stopSession", async (event) => {
+    assertTrustedSender(event, params.rendererUrl);
+    return params.stopOverlaySession();
   });
 
   ipcMain.handle(
