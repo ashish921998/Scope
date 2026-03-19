@@ -262,22 +262,36 @@ export class NativeCaptureSession extends EventEmitter {
 
   private waitForReady() {
     return new Promise<void>((resolve, reject) => {
+      let settled = false;
       const timeout = setTimeout(() => {
+        settled = true;
         cleanup();
         reject(new Error("Timed out waiting for native audio helper readiness."));
       }, 10_000);
 
       const onReady = () => {
+        if (settled) {
+          return;
+        }
+        settled = true;
         cleanup();
         resolve();
       };
 
       const onFatal = (event: NativeCaptureFatalEvent) => {
+        if (settled) {
+          return;
+        }
+        settled = true;
         cleanup();
         reject(new Error(`${event.code}: ${event.message}`));
       };
 
       const onExit = (error: Error) => {
+        if (settled) {
+          return;
+        }
+        settled = true;
         cleanup();
         reject(error);
       };
@@ -286,7 +300,6 @@ export class NativeCaptureSession extends EventEmitter {
         clearTimeout(timeout);
         this.off("ready", onReady);
         this.off("fatal", onFatal);
-        this.exitPromise.catch(onExit);
       };
 
       this.once("ready", onReady);

@@ -36,6 +36,11 @@ export function InterviewCard({ setOutput, registerTourTarget }: InterviewCardPr
   const [openaiKey, setOpenaiKey] = useState("");
   const liveCleanupRef = useRef<null | (() => Promise<void> | void)>(null);
   const sendingChunkRef = useRef(Promise.resolve());
+  const chunkSourceRef = useRef(chunkSource);
+
+  useEffect(() => {
+    chunkSourceRef.current = chunkSource;
+  }, [chunkSource]);
 
   const requestSystemAudioStream = async () => {
     if (!includeSystemAudio || !navigator.mediaDevices.getDisplayMedia) {
@@ -69,60 +74,75 @@ export function InterviewCard({ setOutput, registerTourTarget }: InterviewCardPr
       })
     });
 
-    const micStream = await navigator.mediaDevices.getUserMedia({ audio: true });
-    const systemStream = await requestSystemAudioStream();
-    const ctx = new AudioContext({ sampleRate: 24000 });
-
-    const blob = new Blob([AUDIO_PROCESSOR_WORKLET], { type: "application/javascript" });
-    const workletUrl = URL.createObjectURL(blob);
+    let micStream: MediaStream | null = null;
+    let systemStream: MediaStream | null = null;
+    let ctx: AudioContext | null = null;
+    let micSource: MediaStreamAudioSourceNode | null = null;
+    let systemSource: MediaStreamAudioSourceNode | null = null;
+    let workletNode: AudioWorkletNode | null = null;
     try {
-      await ctx.audioWorklet.addModule(workletUrl);
-    } finally {
-      URL.revokeObjectURL(workletUrl);
-    }
+      micStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      systemStream = await requestSystemAudioStream();
+      ctx = new AudioContext({ sampleRate: 24000 });
 
-    const micSource = ctx.createMediaStreamSource(micStream);
-    const systemAudioTracks = systemStream?.getAudioTracks() ?? [];
-    const systemSource =
-      systemStream && systemAudioTracks.length > 0 ? ctx.createMediaStreamSource(systemStream) : null;
-    const workletNode = new AudioWorkletNode(ctx, "scope-live-processor");
-
-    workletNode.port.onmessage = (event: MessageEvent<Float32Array>) => {
-      const chunkBase64 = float32ToPcm16Base64(event.data);
-      sendingChunkRef.current = sendingChunkRef.current
-        .then(() =>
-          fetchJson(`/v1/interviews/${interviewId}/transcription/chunk`, {
-            method: "POST",
-            body: JSON.stringify({ audioBase64: chunkBase64, source: chunkSource })
-          })
-        )
-        .catch(() => {});
-    };
-
-    micSource.connect(workletNode);
-    if (systemSource) {
-      systemSource.connect(workletNode);
-    }
-    workletNode.connect(ctx.destination);
-    setLiveCapturing(true);
-    setOutput("Browser fallback capture started.");
-
-    liveCleanupRef.current = async () => {
-      workletNode.disconnect();
-      micSource.disconnect();
-      if (systemSource) {
-        systemSource.disconnect();
+      const blob = new Blob([AUDIO_PROCESSOR_WORKLET], { type: "application/javascript" });
+      const workletUrl = URL.createObjectURL(blob);
+      try {
+        await ctx.audioWorklet.addModule(workletUrl);
+      } finally {
+        URL.revokeObjectURL(workletUrl);
       }
-      micStream.getTracks().forEach((track) => track.stop());
+
+      micSource = ctx.createMediaStreamSource(micStream);
+      const systemAudioTracks = systemStream?.getAudioTracks() ?? [];
+      systemSource = systemStream && systemAudioTracks.length > 0 ? ctx.createMediaStreamSource(systemStream) : null;
+      workletNode = new AudioWorkletNode(ctx, "scope-live-processor");
+
+      workletNode.port.onmessage = (event: MessageEvent<Float32Array>) => {
+        const chunkBase64 = float32ToPcm16Base64(event.data);
+        sendingChunkRef.current = sendingChunkRef.current
+          .then(() =>
+            fetchJson(`/v1/interviews/${interviewId}/transcription/chunk`, {
+              method: "POST",
+              body: JSON.stringify({ audioBase64: chunkBase64, source: chunkSourceRef.current })
+            })
+          )
+          .catch((error) => {
+            console.warn("Interview transcription chunk upload failed.", error);
+          })
+      };
+
+      micSource.connect(workletNode);
+      if (systemSource) {
+        systemSource.connect(workletNode);
+      }
+      workletNode.connect(ctx.destination);
+      setLiveCapturing(true);
+      setOutput("Browser fallback capture started.");
+
+      liveCleanupRef.current = async () => {
+        workletNode?.disconnect();
+        micSource?.disconnect();
+        systemSource?.disconnect();
+        micStream?.getTracks().forEach((track) => track.stop());
+        systemStream?.getTracks().forEach((track) => track.stop());
+        await ctx?.close();
+        await sendingChunkRef.current.catch(() => {});
+        await fetchJson(`/v1/interviews/${interviewId}/transcription/stop`, {
+          method: "POST",
+          body: JSON.stringify({})
+        });
+        setLiveCapturing(false);
+      };
+    } catch (error) {
+      workletNode?.disconnect();
+      micSource?.disconnect();
+      systemSource?.disconnect();
+      micStream?.getTracks().forEach((track) => track.stop());
       systemStream?.getTracks().forEach((track) => track.stop());
-      await ctx.close();
-      await sendingChunkRef.current.catch(() => {});
-      await fetchJson(`/v1/interviews/${interviewId}/transcription/stop`, {
-        method: "POST",
-        body: JSON.stringify({})
-      });
-      setLiveCapturing(false);
-    };
+      await ctx?.close().catch(() => {});
+      throw error;
+    }
   };
 
   const startLiveCapture = async () => {
