@@ -138,7 +138,12 @@ export class OpenAIRealtimeTranscription implements TranscriptionProvider {
     };
 
     this.sessions.set(interviewRef.id, state);
-    await this.connectRealtimeSocket(apiKey, state);
+    try {
+      await this.connectRealtimeSocket(apiKey, state);
+    } catch (error) {
+      this.sessions.delete(interviewRef.id);
+      throw error;
+    }
 
     return {
       sessionId: interviewRef.id,
