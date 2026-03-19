@@ -138,14 +138,14 @@ export function MeetingCard({ setOutput, registerTourTarget }: MeetingCardProps)
       const micNode = new AudioWorkletNode(ctx, "scope-live-meeting-processor");
       micNode.port.onmessage = (event: MessageEvent<Float32Array>) => {
         const chunkBase64 = float32ToPcm16Base64(event.data);
-        sendingChunkRef.current = sendingChunkRef.current
-          .then(() =>
-            fetchJson(`/v1/meetings/${meeting.id}/transcription/chunk`, {
-              method: "POST",
-              body: JSON.stringify({ audioBase64: chunkBase64, speaker: "interviewer" })
-            })
-          )
-          .catch(() => {});
+          sendingChunkRef.current = sendingChunkRef.current
+            .then(() =>
+              fetchJson(`/v1/meetings/${meeting.id}/transcription/chunk`, {
+                method: "POST",
+                body: JSON.stringify({ audioBase64: chunkBase64, speaker: "customer" })
+              })
+            )
+            .catch(() => {});
       };
       micSource.connect(micNode);
       micNode.connect(ctx.destination);
@@ -207,6 +207,9 @@ export function MeetingCard({ setOutput, registerTourTarget }: MeetingCardProps)
       if (captureStarted && meeting?.id) {
         await window.scope?.stopMeetingCapture?.(meeting.id).catch(() => {});
       }
+      liveCleanupRef.current = null;
+      setIsRecording(false);
+      setPolling(false);
       setOutput((error as Error).message);
     } finally {
       setIsStarting(false);

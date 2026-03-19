@@ -6,11 +6,14 @@ import { nowIso } from "../utils/time";
 const unique = (values: string[]) => Array.from(new Set(values.filter(Boolean)));
 
 const buildMeetingNotes = (segments: MeetingTranscriptSegment[]): MeetingNotes => {
-  const lines = segments.map((segment) => segment.text.trim()).filter(Boolean);
+  const segmentLines = segments
+    .map((segment) => ({ id: segment.id, text: segment.text.trim() }))
+    .filter((segment): segment is { id: string; text: string } => Boolean(segment.text));
+  const lines = segmentLines.map((segment) => segment.text);
   const lowered = lines.map((line) => line.toLowerCase());
 
   const decisions = lines.filter((line) => /decid|agreed|will|ship|launch/i.test(line)).slice(0, 3);
-  const actionLines = lines.filter((line) => /follow up|next step|action|todo|owner/i.test(line)).slice(0, 3);
+  const actionLines = segmentLines.filter((segment) => /follow up|next step|action|todo|owner/i.test(segment.text)).slice(0, 3);
   const topics = unique(
     lowered.flatMap((line) => {
       const matched: string[] = [];
@@ -28,13 +31,13 @@ const buildMeetingNotes = (segments: MeetingTranscriptSegment[]): MeetingNotes =
     keyDecisions: decisions.length > 0 ? decisions : lines.slice(0, 3),
     actionItems:
       actionLines.length > 0
-        ? actionLines.map((text, index) => ({
-            text,
-            sourceSegmentIds: segments[index] ? [segments[index].id] : undefined
+        ? actionLines.map((segment) => ({
+            text: segment.text,
+            sourceSegmentIds: [segment.id]
           }))
-        : lines.slice(0, 2).map((text, index) => ({
-            text: `Follow up on: ${text}`,
-            sourceSegmentIds: segments[index] ? [segments[index].id] : undefined
+        : segmentLines.slice(0, 2).map((segment) => ({
+            text: `Follow up on: ${segment.text}`,
+            sourceSegmentIds: [segment.id]
           })),
     topics: topics.length > 0 ? topics : ["General"],
     followUps: unique(
