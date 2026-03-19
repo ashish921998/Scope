@@ -47,20 +47,18 @@ export const startLocalService = async (params: {
   const transcription = new OpenAIRealtimeTranscription({
     getOpenAIKey: () => params.keychainStore.getProviderKey("openai"),
     onTranscriptSegments: (sessionId, segments) => {
+      let interviewError: unknown = null;
       try {
         services.interviewService.appendTranscript(sessionId, segments);
         return;
       } catch (error) {
-        if ((error as Error).message !== "Interview session not found.") {
-          params.logger?.warn("Unable to append realtime transcript segment", { error, sessionId });
-          return;
-        }
+        interviewError = error;
       }
 
       try {
         services.meetingService.appendTranscript(sessionId, segments);
       } catch (error) {
-        params.logger?.warn("Unable to append realtime transcript segment", { error, sessionId });
+        params.logger?.warn("Unable to append realtime transcript segment", { error, interviewError, sessionId });
       }
     },
     logger: params.logger ?? console
