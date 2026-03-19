@@ -1,7 +1,11 @@
 import type { MeetingNotes, TranscriptSegment } from "@scope/types";
 import { safeFetch } from "../security/egress";
 
+const ANTHROPIC_TIMEOUT_MS = 10_000;
+
 const callAnthropic = async (key: string, systemPrompt: string, userMessage: string): Promise<string> => {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), ANTHROPIC_TIMEOUT_MS);
   const response = await safeFetch("https://api.anthropic.com/v1/messages", {
     method: "POST",
     headers: {
@@ -14,7 +18,10 @@ const callAnthropic = async (key: string, systemPrompt: string, userMessage: str
       max_tokens: 1024,
       system: systemPrompt,
       messages: [{ role: "user", content: userMessage }]
-    })
+    }),
+    signal: controller.signal
+  }).finally(() => {
+    clearTimeout(timeout);
   });
   if (!response.ok) {
     const text = await response.text();

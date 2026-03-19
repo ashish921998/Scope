@@ -11,6 +11,20 @@ interface MeetingRouteDeps {
 }
 
 const isNotFoundError = (error: unknown) => (error as Error).message === "Meeting session not found.";
+const isCompletedError = (error: unknown) => (error as Error).message === "Meeting session already completed.";
+const isTranscriptSegment = (value: unknown): value is TranscriptSegment => {
+  if (!value || typeof value !== "object") {
+    return false;
+  }
+  const segment = value as Record<string, unknown>;
+  return (
+    typeof segment.id === "string" &&
+    typeof segment.text === "string" &&
+    typeof segment.timestampMs === "number" &&
+    Number.isFinite(segment.timestampMs) &&
+    (segment.speaker === "interviewer" || segment.speaker === "customer" || segment.speaker === "system")
+  );
+};
 
 export const registerMeetingRoutes = (app: Express, deps: MeetingRouteDeps) => {
   const { services, transcription, logger } = deps;
@@ -26,7 +40,12 @@ export const registerMeetingRoutes = (app: Express, deps: MeetingRouteDeps) => {
 
   app.post("/v1/meetings/:id/transcript", (req, res) => {
     try {
-      const segments = (req.body?.segments ?? []) as TranscriptSegment[];
+      const segmentsInput = req.body?.segments;
+      if (!Array.isArray(segmentsInput) || !segmentsInput.every(isTranscriptSegment)) {
+        res.status(400).json({ error: "Invalid segments payload." });
+        return;
+      }
+      const segments = segmentsInput;
       const result = services.meetingService.appendTranscript(req.params.id, segments);
       services.signalService.ingestTranscriptSegments({
         source: "meeting",
@@ -35,7 +54,7 @@ export const registerMeetingRoutes = (app: Express, deps: MeetingRouteDeps) => {
       });
       res.status(200).json(result);
     } catch (error) {
-      res.status(404).json({ error: (error as Error).message });
+      res.status(isNotFoundError(error) ? 404 : isCompletedError(error) ? 409 : 500).json({ error: (error as Error).message });
     }
   });
 

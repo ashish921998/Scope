@@ -26,6 +26,9 @@ export class MeetingService {
     if (!session) {
       throw new Error("Meeting session not found.");
     }
+    if (session.status === "completed") {
+      throw new Error("Meeting session already completed.");
+    }
 
     const merged = [...session.transcriptSegments, ...segments].sort((a, b) => a.timestampMs - b.timestampMs);
     this.meetingRepo.updateTranscript(sessionId, merged);

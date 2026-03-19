@@ -136,7 +136,18 @@ export class OpenAIRealtimeTranscription {
     };
 
     this.sessions.set(sessionId, state);
-    await this.connectRealtimeSocket(apiKey, state);
+    try {
+      await this.connectRealtimeSocket(apiKey, state);
+    } catch (error) {
+      state.closed = true;
+      this.sessions.delete(sessionId);
+      try {
+        state.ws?.close();
+      } catch {
+        // Ignore cleanup failure from partially initialized sockets.
+      }
+      throw error;
+    }
 
     return {
       sessionId,
@@ -150,7 +161,7 @@ export class OpenAIRealtimeTranscription {
   async appendAudio(sessionId: string, input: AudioChunkInput) {
     const state = this.sessions.get(sessionId);
     if (!state || state.closed) {
-      throw new Error("Realtime transcription session not started for this interview.");
+      throw new Error("Realtime transcription session not started.");
     }
 
     if (!input.audioBase64 || typeof input.audioBase64 !== "string") {
