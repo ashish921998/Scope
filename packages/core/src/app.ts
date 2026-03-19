@@ -4,9 +4,11 @@ import { DossierRepo } from "./db/dossierRepo";
 import { EmbeddingRepo } from "./db/embeddingRepo";
 import { FeatureRepo } from "./db/featureRepo";
 import { InterviewRepo } from "./db/interviewRepo";
+import { MeetingRepo } from "./db/meetingRepo";
 import { SignalRepo } from "./db/signalRepo";
 import { ExportService } from "./export/service";
 import { InterviewService } from "./interviews/service";
+import { MeetingService } from "./meetings/service";
 import { SignalService } from "./signals/service";
 
 export interface CoreServicesOptions {
@@ -18,6 +20,7 @@ export interface CoreServicesOptions {
 
 export interface CoreServices {
   interviewService: InterviewService;
+  meetingService: MeetingService;
   signalService: SignalService;
   dossierService: DossierService;
   exportService: ExportService;
@@ -36,18 +39,21 @@ export const createCoreServices = (dbPath: string, options: CoreServicesOptions 
   });
 
   const interviewRepo = new InterviewRepo(db);
+  const meetingRepo = new MeetingRepo(db);
   const signalRepo = new SignalRepo(db);
   const featureRepo = new FeatureRepo(db);
   const dossierRepo = new DossierRepo(db);
   const embeddingRepo = new EmbeddingRepo(db);
 
   const interviewService = new InterviewService(interviewRepo);
+  const meetingService = new MeetingService(meetingRepo);
   const signalService = new SignalService(signalRepo, featureRepo, embeddingRepo);
   const dossierService = new DossierService(signalRepo, dossierRepo, featureRepo, options.getAnthropicKey);
   const exportService = new ExportService(dossierRepo);
 
   return {
     interviewService,
+    meetingService,
     signalService,
     dossierService,
     exportService,

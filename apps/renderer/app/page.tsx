@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { computeTourLayout, type TourRect, type TourViewport } from "./tourLayout";
-import { InterviewCard } from "../components/InterviewCard";
+import { MeetingCard } from "../components/MeetingCard";
 import { SupportCard } from "../components/SupportCard";
 import { IntegrationsCard } from "../components/IntegrationsCard";
 import { SignalStreamCard } from "../components/SignalStreamCard";
@@ -154,7 +154,7 @@ export default function Home() {
         <div>
           <span className="eyebrow">Operator Console</span>
           <h1>Scope Desktop</h1>
-          <small>Arena-equivalent local-first workflow for interviews, signals, dossiers, and support diagnostics.</small>
+          <small>Local-first workflow for meetings, signals, dossiers, and support diagnostics.</small>
         </div>
         <div className="hero-actions">
           <button className="secondary hero-button" onClick={() => setActiveTourIndex(0)}>
@@ -165,7 +165,7 @@ export default function Home() {
       </div>
 
       <div className="grid">
-        <InterviewCard setOutput={setOutput} registerTourTarget={registerTourTarget} />
+        <MeetingCard setOutput={setOutput} registerTourTarget={registerTourTarget} />
         <SupportCard setOutput={setOutput} registerTourTarget={registerTourTarget} />
         <IntegrationsCard setOutput={setOutput} />
         <SignalStreamCard setOutput={setOutput} onFeatureIdFound={setFeatureId} />

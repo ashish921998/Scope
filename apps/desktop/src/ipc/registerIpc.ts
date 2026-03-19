@@ -1,7 +1,8 @@
 import { ipcMain, type IpcMainInvokeEvent } from "electron";
-import type { IntegrationProvider } from "@scope/types";
+import type { IntegrationProvider, ProviderKeyName } from "@scope/types";
 import { connectIntegrationOAuth } from "../auth/oauth";
 import type { CaptureService } from "../audio/captureService";
+import { getMeetingPermissions, openMeetingPermissionsSettings } from "../permissions/mediaPermissions";
 import type { KeychainStore } from "../security/keychain";
 
 const PROVIDERS: ReadonlySet<IntegrationProvider> = new Set([
@@ -10,10 +11,11 @@ const PROVIDERS: ReadonlySet<IntegrationProvider> = new Set([
   "github",
   "posthog",
   "notion",
-  "jira"
+  "jira",
+  "google"
 ]);
 
-const KEY_PROVIDERS = new Set(["openai", "anthropic"]);
+const KEY_PROVIDERS = new Set<ProviderKeyName>(["openai", "anthropic"]);
 const EXPORT_FORMATS = new Set(["markdown", "json"]);
 
 const ensureString = (value: unknown, field: string) => {
@@ -100,17 +102,84 @@ export const registerIpcHandlers = (params: {
     return params.captureService.stopCapture(safeSessionId);
   });
 
+  ipcMain.handle("meeting/getPermissions", (event) => {
+    assertTrustedSender(event, params.rendererUrl);
+    return getMeetingPermissions();
+  });
+
+  ipcMain.handle("meeting/openPermissionsSettings", async (event) => {
+    assertTrustedSender(event, params.rendererUrl);
+    return openMeetingPermissionsSettings();
+  });
+
+  ipcMain.handle("meeting/listRecent", async (event) => {
+    assertTrustedSender(event, params.rendererUrl);
+    const response = await fetch(`${baseUrl}/v1/meetings`, {
+      headers: { Authorization: `Bearer ${params.serviceToken}` }
+    });
+    if (!response.ok) {
+      throw new Error(await response.text());
+    }
+    const payload = (await response.json()) as { items?: unknown[] };
+    return payload.items ?? [];
+  });
+
+  ipcMain.handle("meeting/start", async (event, input: unknown) => {
+    assertTrustedSender(event, params.rendererUrl);
+    const body = typeof input === "object" && input ? input : {};
+    const response = await fetch(`${baseUrl}/v1/meetings/start`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${params.serviceToken}`
+      },
+      body: JSON.stringify(body)
+    });
+    if (!response.ok) {
+      throw new Error(await response.text());
+    }
+    return response.json();
+  });
+
+  ipcMain.handle("meeting/get", async (event, meetingId: unknown) => {
+    assertTrustedSender(event, params.rendererUrl);
+    const safeMeetingId = ensureString(meetingId, "meetingId");
+    const response = await fetch(`${baseUrl}/v1/meetings/${encodeURIComponent(safeMeetingId)}`, {
+      headers: { Authorization: `Bearer ${params.serviceToken}` }
+    });
+    if (!response.ok) {
+      throw new Error(await response.text());
+    }
+    return response.json();
+  });
+
+  ipcMain.handle(
+    "meeting/startCapture",
+    async (event, meetingId: unknown, micDeviceId: unknown, systemAudio = true) => {
+      assertTrustedSender(event, params.rendererUrl);
+      const safeMeetingId = ensureString(meetingId, "meetingId");
+      const safeMicDeviceId = ensureString(micDeviceId, "micDeviceId");
+      return params.captureService.startMeetingCapture(safeMeetingId, safeMicDeviceId, Boolean(systemAudio));
+    }
+  );
+
+  ipcMain.handle("meeting/stopCapture", async (event, meetingId: unknown) => {
+    assertTrustedSender(event, params.rendererUrl);
+    const safeMeetingId = ensureString(meetingId, "meetingId");
+    return params.captureService.stopMeetingCapture(safeMeetingId);
+  });
+
   ipcMain.handle(
     "keys/saveProviderKey",
     async (event, provider: unknown, keyRef: unknown) => {
       assertTrustedSender(event, params.rendererUrl);
-      const keyProvider = ensureString(provider, "provider");
+      const keyProvider = ensureString(provider, "provider") as ProviderKeyName;
       if (!KEY_PROVIDERS.has(keyProvider)) {
         throw new Error(`Unsupported key provider: ${keyProvider}`);
       }
 
       const secret = ensureString(keyRef, "keyRef");
-      await params.keychainStore.saveProviderKey(keyProvider as "openai" | "anthropic", secret);
+      await params.keychainStore.saveProviderKey(keyProvider as ProviderKeyName, secret);
       return { ok: true };
     }
   );
