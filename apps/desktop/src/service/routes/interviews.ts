@@ -2,6 +2,7 @@ import type { TranscriptSegment } from "@scope/types";
 import type { Express } from "express";
 import type { CoreServices } from "@scope/core";
 import type { OpenAIRealtimeTranscription } from "../../transcription";
+import { syncMeetingToScopePm } from "../../meetings/webSync";
 import type { AppLogger } from "../../telemetry/logger";
 
 interface InterviewRouteDeps {
@@ -51,6 +52,14 @@ export const registerInterviewRoutes = (app: Express, deps: InterviewRouteDeps) 
         logger?.warn("Stopping transcription failed before interview stop", { error });
       }
       const session = services.interviewService.stop(req.params.id);
+      try {
+        await syncMeetingToScopePm({
+          meeting: session,
+          logger
+        });
+      } catch (error) {
+        logger?.warn("ScopePM meeting sync failed after interview stop", { error });
+      }
       res.status(200).json(session);
     } catch (error) {
       res.status(404).json({ error: (error as Error).message });
