@@ -37,6 +37,22 @@ export function InterviewCard({ setOutput, registerTourTarget }: InterviewCardPr
   const liveCleanupRef = useRef<null | (() => Promise<void> | void)>(null);
   const sendingChunkRef = useRef(Promise.resolve());
 
+  const requestSystemAudioStream = async () => {
+    if (!includeSystemAudio || !navigator.mediaDevices.getDisplayMedia) {
+      return null;
+    }
+
+    try {
+      return await navigator.mediaDevices.getDisplayMedia({ audio: true, video: false });
+    } catch (error) {
+      const name = (error as Error).name;
+      if (name !== "TypeError" && name !== "NotSupportedError" && name !== "OverconstrainedError") {
+        throw error;
+      }
+      return navigator.mediaDevices.getDisplayMedia({ audio: true, video: true });
+    }
+  };
+
   useEffect(() => {
     return () => {
       if (liveCleanupRef.current) {
@@ -54,10 +70,7 @@ export function InterviewCard({ setOutput, registerTourTarget }: InterviewCardPr
     });
 
     const micStream = await navigator.mediaDevices.getUserMedia({ audio: true });
-    const systemStream =
-      includeSystemAudio && navigator.mediaDevices.getDisplayMedia
-        ? await navigator.mediaDevices.getDisplayMedia({ audio: true, video: true })
-        : null;
+    const systemStream = await requestSystemAudioStream();
     const ctx = new AudioContext({ sampleRate: 24000 });
 
     const blob = new Blob([AUDIO_PROCESSOR_WORKLET], { type: "application/javascript" });

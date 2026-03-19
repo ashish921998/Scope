@@ -124,7 +124,6 @@ export class CaptureService {
     }
 
     existing.stopPromise = (async () => {
-      this.active.delete(sessionId);
       await existing.nativeSession?.stop();
       await Promise.allSettled([...existing.pendingUploads]);
 
@@ -146,7 +145,9 @@ export class CaptureService {
         stoppedAt: new Date().toISOString(),
         transcription
       };
-    })();
+    })().finally(() => {
+      this.active.delete(sessionId);
+    });
 
     return existing.stopPromise;
   }

@@ -36,7 +36,7 @@ describe("CaptureService", () => {
       timestampMs: 123
     });
 
-    await Promise.resolve();
+    await vi.waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2));
     await service.stopCapture("session-1");
 
     expect(fetchMock).toHaveBeenCalledTimes(3);
@@ -83,9 +83,8 @@ describe("CaptureService", () => {
       timestampMs: 456
     });
 
-    await Promise.resolve();
+    await vi.waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2));
     const stopPromise = service.stopCapture("session-2");
-    await Promise.resolve();
 
     expect(fetchMock.mock.calls.some(([url]) => String(url).endsWith("/transcription/stop"))).toBe(false);
 
