@@ -6,3 +6,5 @@ CREATE TABLE IF NOT EXISTS meetings (
   transcript_json TEXT NOT NULL,
   notes_json TEXT
 );
+
+CREATE INDEX IF NOT EXISTS idx_meetings_started_at ON meetings(started_at DESC);

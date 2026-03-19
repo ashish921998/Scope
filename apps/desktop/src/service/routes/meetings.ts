@@ -10,6 +10,8 @@ interface MeetingRouteDeps {
   logger?: AppLogger;
 }
 
+const isNotFoundError = (error: unknown) => (error as Error).message === "Meeting session not found.";
+
 export const registerMeetingRoutes = (app: Express, deps: MeetingRouteDeps) => {
   const { services, transcription, logger } = deps;
 
@@ -47,7 +49,7 @@ export const registerMeetingRoutes = (app: Express, deps: MeetingRouteDeps) => {
       const session = await services.meetingService.stop(req.params.id);
       res.status(200).json(session);
     } catch (error) {
-      res.status(404).json({ error: (error as Error).message });
+      res.status(isNotFoundError(error) ? 404 : 500).json({ error: (error as Error).message });
     }
   });
 
@@ -79,7 +81,7 @@ export const registerMeetingRoutes = (app: Express, deps: MeetingRouteDeps) => {
       });
       res.status(200).json(started);
     } catch (error) {
-      res.status(400).json({ error: (error as Error).message });
+      res.status(isNotFoundError(error) ? 404 : 400).json({ error: (error as Error).message });
     }
   });
 

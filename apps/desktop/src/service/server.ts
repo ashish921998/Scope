@@ -50,8 +50,11 @@ export const startLocalService = async (params: {
       try {
         services.interviewService.appendTranscript(sessionId, segments);
         return;
-      } catch {
-        // fall through to meeting lookup
+      } catch (error) {
+        if ((error as Error).message !== "Interview session not found.") {
+          params.logger?.warn("Unable to append realtime transcript segment", { error, sessionId });
+          return;
+        }
       }
 
       try {

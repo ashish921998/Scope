@@ -37,6 +37,9 @@ const parseJsonResponse = <T>(text: string, fallback: T): T => {
 const uniqueTake = (items: string[], max = 4) =>
   Array.from(new Set(items.map((item) => item.trim()).filter(Boolean))).slice(0, max);
 
+const asStringArray = (value: unknown): string[] =>
+  Array.isArray(value) ? value.filter((item): item is string => typeof item === "string") : [];
+
 const fallbackSentenceSplit = (text: string) =>
   text
     .split(/(?<=[.!?])\s+/)
@@ -101,14 +104,14 @@ Return exactly this JSON structure:
     const parsed = parseJsonResponse<Partial<MeetingNotes>>(text, {});
     return {
       summary: typeof parsed.summary === "string" && parsed.summary.trim() ? parsed.summary.trim() : deterministicResult.summary,
-      decisions: Array.isArray(parsed.decisions) && parsed.decisions.length > 0 ? uniqueTake(parsed.decisions) : deterministicResult.decisions,
+      decisions: asStringArray(parsed.decisions).length > 0 ? uniqueTake(asStringArray(parsed.decisions)) : deterministicResult.decisions,
       actionItems:
-        Array.isArray(parsed.actionItems) && parsed.actionItems.length > 0
-          ? uniqueTake(parsed.actionItems)
+        asStringArray(parsed.actionItems).length > 0
+          ? uniqueTake(asStringArray(parsed.actionItems))
           : deterministicResult.actionItems,
       followUps:
-        Array.isArray(parsed.followUps) && parsed.followUps.length > 0
-          ? uniqueTake(parsed.followUps)
+        asStringArray(parsed.followUps).length > 0
+          ? uniqueTake(asStringArray(parsed.followUps))
           : deterministicResult.followUps
     };
   } catch {
