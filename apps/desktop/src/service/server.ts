@@ -50,7 +50,9 @@ export const startLocalService = async (params: {
       try {
         services.interviewService.appendTranscript(sessionId, segments);
         return;
-      } catch {}
+      } catch (interviewError) {
+        params.logger?.debug?.("Interview transcript append failed, trying meeting", { error: interviewError, sessionId });
+      }
 
       try {
         services.meetingService.appendTranscript(

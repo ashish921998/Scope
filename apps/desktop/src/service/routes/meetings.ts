@@ -103,7 +103,12 @@ export const registerMeetingRoutes = (app: Express, deps: MeetingRouteDeps) => {
 
   app.post("/v1/meetings/:id/transcription/stop", async (req, res) => {
     try {
-      const result = await transcription.stop(req.params.id);
+      let result: Awaited<ReturnType<typeof transcription.stop>> | Record<string, never> = {};
+      try {
+        result = await transcription.stop(req.params.id);
+      } catch (error) {
+        logger?.warn("Stopping transcription failed before meeting stop", { error });
+      }
       const transcript = services.meetingService.getTranscript(req.params.id);
       ingestMeetingSegments(services, req.params.id, transcript.transcriptSegments);
       const meeting = services.meetingService.stop(req.params.id);
