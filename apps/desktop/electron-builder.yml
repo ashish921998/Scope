@@ -12,6 +12,9 @@ mac:
   gatekeeperAssess: false
   entitlements: build/entitlements.mac.plist
   entitlementsInherit: build/entitlements.mac.plist
+  extendInfo:
+    NSMicrophoneUsageDescription: "Scope needs microphone access to record and transcribe meetings."
+    NSScreenCaptureUsageDescription: "Scope needs screen and system audio capture permission to transcribe meetings."
   target:
     - zip
     - dmg

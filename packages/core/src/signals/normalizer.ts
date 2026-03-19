@@ -8,6 +8,7 @@ const sourceAliases: Record<string, SignalSource> = {
   notion: "notion",
   jira: "jira",
   interview: "interview",
+  meeting: "meeting",
   research: "research_upload",
   upload: "research_upload"
 };

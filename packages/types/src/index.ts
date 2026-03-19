@@ -4,7 +4,8 @@ export type IntegrationProvider =
   | "github"
   | "posthog"
   | "notion"
-  | "jira";
+  | "jira"
+  | "google";
 
 export type SignalType =
   | "pain_point"
@@ -13,7 +14,16 @@ export type SignalType =
   | "positive_feedback"
   | "analytics_insight";
 
-export type SignalSource = IntegrationProvider | "interview" | "research_upload";
+export type SignalSource = IntegrationProvider | "interview" | "meeting" | "research_upload";
+
+export type ProviderKeyName = "openai" | "anthropic";
+
+export type MeetingPermissionStatus = "granted" | "denied" | "not-determined" | "restricted" | "unknown";
+
+export interface MeetingPermissions {
+  microphone: MeetingPermissionStatus;
+  screenCapture: MeetingPermissionStatus;
+}
 
 export interface EvidenceRef {
   id: string;
@@ -62,6 +72,39 @@ export interface InterviewSession {
   consentAccepted: boolean;
   startedAt: string;
   endedAt?: string;
+}
+
+export interface MeetingTranscriptSegment {
+  id: string;
+  speaker: string;
+  text: string;
+  timestampMs: number;
+  source: "mic" | "system";
+}
+
+export interface MeetingActionItem {
+  text: string;
+  assignee?: string;
+  sourceSegmentIds?: string[];
+}
+
+export interface MeetingNotes {
+  summary: string;
+  keyDecisions: string[];
+  actionItems: MeetingActionItem[];
+  topics: string[];
+  followUps: string[];
+}
+
+export interface MeetingSession {
+  id: string;
+  title: string;
+  status: "active" | "completed";
+  consentAccepted: boolean;
+  startedAt: string;
+  endedAt?: string;
+  transcriptSegments: MeetingTranscriptSegment[];
+  notes?: MeetingNotes;
 }
 
 export interface FeatureCandidate {
@@ -119,7 +162,7 @@ export interface GhostScanResult {
 }
 
 export interface ProviderKeyInput {
-  provider: "openai" | "anthropic";
+  provider: ProviderKeyName;
   key: string;
 }
 

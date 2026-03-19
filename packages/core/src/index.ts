@@ -11,3 +11,4 @@ export * from "./integrations/linearAdapter";
 export * from "./integrations/jiraAdapter";
 export * from "./security/redaction";
 export * from "./security/egress";
+export * from "./meetings/service";

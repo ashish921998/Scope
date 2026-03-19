@@ -142,6 +142,102 @@ describe("local service API", () => {
     expect(interviewSignal).toBeTruthy();
   });
 
+  it("supports meeting start, list, get, and stop", async () => {
+    const meeting = await jsonFetch(`http://127.0.0.1:${port}/v1/meetings/start`, token, {
+      method: "POST",
+      body: JSON.stringify({ consentAccepted: true, title: "Weekly sync" })
+    });
+    expect(meeting.response.status).toBe(201);
+
+    const meetingId = String(meeting.data.id);
+
+    const listed = await jsonFetch(`http://127.0.0.1:${port}/v1/meetings`, token);
+    expect(listed.response.status).toBe(200);
+    expect(Array.isArray(listed.data.items)).toBe(true);
+    expect((listed.data.items as Array<{ id: string }>).some((item) => item.id === meetingId)).toBe(true);
+
+    const fetched = await jsonFetch(`http://127.0.0.1:${port}/v1/meetings/${meetingId}`, token);
+    expect(fetched.response.status).toBe(200);
+    expect(fetched.data.id).toBe(meetingId);
+
+    await jsonFetch(`http://127.0.0.1:${port}/v1/meetings/${meetingId}/transcript`, token, {
+      method: "POST",
+      body: JSON.stringify({
+        segments: [
+          {
+            id: "meeting-seg-1",
+            speaker: "me",
+            text: "We decided to keep consent gating in the meeting UI.",
+            timestampMs: 100,
+            source: "mic"
+          }
+        ]
+      })
+    });
+
+    const stopped = await jsonFetch(`http://127.0.0.1:${port}/v1/meetings/${meetingId}/transcription/stop`, token, {
+      method: "POST",
+      body: JSON.stringify({})
+    });
+    expect(stopped.response.status).toBe(200);
+    expect(stopped.data.meeting.status).toBe("completed");
+    expect(stopped.data.meeting.notes.summary).toContain("We decided");
+  });
+
+  it("exposes meeting realtime transcription endpoint with key enforcement", async () => {
+    const startMeeting = await jsonFetch(`http://127.0.0.1:${port}/v1/meetings/start`, token, {
+      method: "POST",
+      body: JSON.stringify({ consentAccepted: true, title: "Realtime test" })
+    });
+    expect(startMeeting.response.status).toBe(201);
+
+    const meetingId = startMeeting.data.id as string;
+
+    const startTranscription = await jsonFetch(
+      `http://127.0.0.1:${port}/v1/meetings/${meetingId}/transcription/start`,
+      token,
+      {
+        method: "POST",
+        body: JSON.stringify({ language: "en" })
+      }
+    );
+
+    expect(startTranscription.response.status).toBe(400);
+    expect(String(startTranscription.data.error)).toContain("OpenAI provider key");
+  });
+
+  it("auto-ingests meeting transcript segments into signal stream", async () => {
+    const meeting = await jsonFetch(`http://127.0.0.1:${port}/v1/meetings/start`, token, {
+      method: "POST",
+      body: JSON.stringify({ consentAccepted: true, title: "Signal sync" })
+    });
+    expect(meeting.response.status).toBe(201);
+
+    const meetingId = String(meeting.data.id);
+    const append = await jsonFetch(`http://127.0.0.1:${port}/v1/meetings/${meetingId}/transcript`, token, {
+      method: "POST",
+      body: JSON.stringify({
+        segments: [
+          {
+            id: "meeting-auto-1",
+            speaker: "system",
+            text: "Meeting notes should be visible after recording ends.",
+            timestampMs: 10,
+            source: "system"
+          }
+        ]
+      })
+    });
+    expect(append.response.status).toBe(200);
+
+    const stream = await jsonFetch(`http://127.0.0.1:${port}/v1/signals/stream`, token);
+    expect(stream.response.status).toBe(200);
+    const meetingSignal = (stream.data.items as Array<{ source: string; sourceRef: string }>).find(
+      (item) => item.source === "meeting" && item.sourceRef.includes(meetingId)
+    );
+    expect(meetingSignal).toBeTruthy();
+  });
+
   it("starts with strict encrypted DB mode enabled", async () => {
     const encryptedDir = mkdtempSync(join(tmpdir(), "scope-test-encrypted-"));
     const encryptedService = await startLocalService({
